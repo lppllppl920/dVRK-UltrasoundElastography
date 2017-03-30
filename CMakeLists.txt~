@@ -9,8 +9,11 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
-add_executable(MySocketClient src/my_socket.cpp )
-add_executable(MySocketServer src/string_server.cpp)
+set(CMAKE_BUILD_TYPE DEBUG)
+
+#add_executable(MySocketClient src/my_socket.cpp )
+add_executable(MySocketClient src/main_IGTLclient.cpp src/IGTLclient.cpp )
+add_executable(MySocketServer src/image_server.cpp)
 
 set(CMAKE_MODULE_PATH /home/xingtong/Downloads/libevent-2.1.8-stable)
 find_package(Event)
@@ -26,9 +29,9 @@ include_directories(${OpenIGTLink_INCLUDE_DIRS})
 
 find_package(Boost COMPONENTS thread system)
 include_directories(${Boost_INCLUDE_DIRS})
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
 
+find_package( OpenCV REQUIRED )
+include_directories(${OpenCV_INCLUDE_PATH})
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -193,6 +196,27 @@ include_directories(
 #############
 ## Testing ##
 #############
+find_library (OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH NAMES ${OpenIGTLinkMUSiiC_LIBRARIES} PATHS /usr/local/lib/igtl)
+
+target_link_libraries( MySocketClient 
+	pthread
+	${EVENT_LIBRARY}
+	#${OpenIGTLinkMUSiiC_LIBRARIES}
+	${OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH}
+	${OpenIGTLink_LIBRARIES}
+	${Boost_LIBRARIES}
+	${catkin_LIBRARIES}
+	${OpenCV_LIBRARIES}
+)
+
+
+target_link_libraries( MySocketServer
+	#${OpenIGTLinkMUSiiC_LIBRARIES}
+	${OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH}
+	${OpenIGTLink_LIBRARIES}
+	${OpenCV_LIBRARIES}
+	pthread
+)
 
 ## Add gtest based cpp test target and link libraries
 # catkin_add_gtest(${PROJECT_NAME}-test test/test_my_socket.cpp)

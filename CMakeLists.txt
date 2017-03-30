@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 set(CMAKE_BUILD_TYPE DEBUG)
 
+set(CMAKE_CXX_FLAGS -std=c++11)
+
 #add_executable(MySocketClient src/my_socket.cpp )
 add_executable(MySocketClient src/main_IGTLclient.cpp src/IGTLclient.cpp )
 add_executable(MySocketServer src/image_server.cpp)
@@ -27,11 +29,19 @@ set(CMAKE_PREFIX_PATH /usr/local/lib/igtl)
 find_package(OpenIGTLink)
 include_directories(${OpenIGTLink_INCLUDE_DIRS})
 
-find_package(Boost COMPONENTS thread system)
+find_package(Boost REQUIRED COMPONENTS thread system)
 include_directories(${Boost_INCLUDE_DIRS})
 
 find_package( OpenCV REQUIRED )
 include_directories(${OpenCV_INCLUDE_PATH})
+
+find_package(CUDA REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS})
+
+#TITAN X GPU specific
+LIST( APPEND CUDA_NVCC_FLAGS "-arch=sm_61" )
+set(CUDA_SEPARABLE_COMPILATION ON)
+set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -196,11 +206,12 @@ include_directories(
 #############
 ## Testing ##
 #############
+find_library (OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH NAMES ${OpenIGTLinkMUSiiC_LIBRARIES} PATHS /usr/local/lib/igtl)
 
 target_link_libraries( MySocketClient 
 	pthread
 	${EVENT_LIBRARY}
-	${OpenIGTLinkMUSiiC_LIBRARIES}
+	${OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH}
 	${OpenIGTLink_LIBRARIES}
 	${Boost_LIBRARIES}
 	${catkin_LIBRARIES}
@@ -209,6 +220,7 @@ target_link_libraries( MySocketClient
 
 
 target_link_libraries( MySocketServer
+	${OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH}
 	${OpenIGTLink_LIBRARIES}
 	${OpenCV_LIBRARIES}
 	pthread

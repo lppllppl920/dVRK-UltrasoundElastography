@@ -6,14 +6,19 @@
  */
 #include "IGTLclient.h"
 
+IGTL_client * pointer;
+unsigned char* candidate_header;
+
 int main(int argc, char **argv) {
 
-    ros::init(argc, argv, "my_socket_client");
-    printf("main thread: %lu \n", IGTL_client::getThreadId());
-    IGTL_client client;
-    client.run();
-    return 0;
+	ros::init(argc, argv, "my_socket_client");
+	printf("main thread: %lu \n", IGTL_client::getThreadId());
+	pointer = new IGTL_client();
+	pointer->run();
+
+	while (ros::ok()) {
+		sleep(1);
+	}
+	return 0;
 }
-
-
 
