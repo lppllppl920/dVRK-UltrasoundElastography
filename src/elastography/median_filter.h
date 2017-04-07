@@ -13,7 +13,7 @@ __device__ void fswap(float *a, float *b);
 __device__ void fsort_elements(float elements[], int count);
 
 __global__ void moving_average(float *disp, float *target, int moving,
-		int width);
+        int width);
 __global__ void median_filter(float *disp, float *target, int w, int h,
-		int width, int height, int c_width, int c_height, float *zhol);
+        int width, int height, int c_width, int c_height, float *zhol);
 

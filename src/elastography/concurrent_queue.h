@@ -43,68 +43,68 @@ using namespace std;
 template<typename Data>
 class concurrent_queue {
 private:
-	std::queue<Data> the_queue;
-	mutable boost::mutex the_mutex;
-	boost::condition_variable the_condition_variable;
-	int l_lookahead;
+    std::queue<Data> the_queue;
+    mutable boost::mutex the_mutex;
+    boost::condition_variable the_condition_variable;
+    int l_lookahead;
 public:
 
-	concurrent_queue() {
-		l_lookahead = 2;
-	}
-	void push(Data const& data) {
-		boost::mutex::scoped_lock lock(the_mutex);
+    concurrent_queue() {
+        l_lookahead = 2;
+    }
+    void push(Data const& data) {
+        boost::mutex::scoped_lock lock(the_mutex);
 
-		cout << "Current queue size" << the_queue.size() << endl;
-		/*if (l_lookahead == the_queue.size ()) {
-		 the_queue.pop();
-		 }*/
+        cout << "Current queue size" << the_queue.size() << endl;
+        /*if (l_lookahead == the_queue.size ()) {
+         the_queue.pop();
+         }*/
 
-		the_queue.push(data);
+        the_queue.push(data);
 
-		lock.unlock();
-		the_condition_variable.notify_one();
-	}
+        lock.unlock();
+        the_condition_variable.notify_one();
+    }
 
-	bool empty() const {
-		boost::mutex::scoped_lock lock(the_mutex);
-		return the_queue.empty();
-	}
+    bool empty() const {
+        boost::mutex::scoped_lock lock(the_mutex);
+        return the_queue.empty();
+    }
 
-	bool try_pop(Data& popped_value) {
-		boost::mutex::scoped_lock lock(the_mutex);
-		if (the_queue.empty()) {
-			return false;
-		}
+    bool try_pop(Data& popped_value) {
+        boost::mutex::scoped_lock lock(the_mutex);
+        if (the_queue.empty()) {
+            return false;
+        }
 
-		popped_value = the_queue.front();
-		the_queue.pop();
-		return true;
-	}
+        popped_value = the_queue.front();
+        the_queue.pop();
+        return true;
+    }
 
-	void wait_and_pop(Data& popped_value) {
-		boost::mutex::scoped_lock lock(the_mutex);
-		while (the_queue.empty()) {
-			the_condition_variable.wait(lock);
-		}
+    void wait_and_pop(Data& popped_value) {
+        boost::mutex::scoped_lock lock(the_mutex);
+        while (the_queue.empty()) {
+            the_condition_variable.wait(lock);
+        }
 
-		popped_value = the_queue.front();
-		the_queue.pop();
-	}
+        popped_value = the_queue.front();
+        the_queue.pop();
+    }
 
-	void wait_and_pop(Data& first_popped_value, Data& second_popped_value,
-			int lookahead) {
-		boost::mutex::scoped_lock lock(the_mutex);
+    void wait_and_pop(Data& first_popped_value, Data& second_popped_value,
+            int lookahead) {
+        boost::mutex::scoped_lock lock(the_mutex);
 
-		l_lookahead = lookahead + 1;
-		while (the_queue.empty() || the_queue.size() < (l_lookahead)) {
-			the_condition_variable.wait(lock);
-		}
+        l_lookahead = lookahead + 1;
+        while (the_queue.empty() || the_queue.size() < (l_lookahead)) {
+            the_condition_variable.wait(lock);
+        }
 
-		first_popped_value = the_queue.front();
-		second_popped_value = the_queue.back();
-		the_queue.pop();
-	}
+        first_popped_value = the_queue.front();
+        second_popped_value = the_queue.back();
+        the_queue.pop();
+    }
 
 };
 

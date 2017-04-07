@@ -40,18 +40,7 @@ private:
 	int device_id_;
 	int no_of_frames_;
 	int top_n_;
-	int rf_server_port_;
-	int server_port_;
 
-	int drange_rf_[2];
-	int drange_a_[2];
-	float w_smooth_;
-	float mu_;
-	int window_;
-	float displacement_;
-	float overlap_;
-	int lookahead_;
-	int algorithm_choice_;
 	int strain_or_displacement_;
 	float crosscorrelation_threshold_;
 	float strain_val_pos_noise_;
@@ -61,12 +50,8 @@ private:
 	float negative_threshold_const_;
 	float negative_threshold_std_dev_;
 	int is_burst_;
-	int use_kal_lsqe_;
 
-	char *input_folder_name_;
-	char *output_folder_name_;
-
-	// uncompressed image and compressed image
+	// pre-compressed image and post-compressed image
 	char *uncomp_;
 	char *comp_;
 	char *temp_;
@@ -83,6 +68,8 @@ private:
 	data_frame_queue *rf_data_;
 	concurrent_queue<data_frame_queue *> in_queue_;
 	concurrent_queue<data_frame_queue *> out_queue_;
+
+	int vector_size_;
 };
 
 #endif /* SRC_ELASTOGRAPHY_H_ */

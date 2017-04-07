@@ -61,162 +61,162 @@ typedef struct tagRxCommand {
 /// 3: US Data Transfer
 /// 4: stop of Data Transfer
 
-	BYTE command;
+    BYTE command;
 
 } RxCommand;
 
 // taken from ulterius_def.h
 typedef struct {
 
-	/// data type - data types can also be determined by file extensions
+    /// data type - data types can also be determined by file extensions
 
-	int type;
+    int type;
 
-	/// number of frames in file
+    /// number of frames in file
 
-	int frames;
+    int frames;
 
-	/// width - number of vectors for raw data, image width for processed data
+    /// width - number of vectors for raw data, image width for processed data
 
-	int w;
+    int w;
 
-	/// height - number of samples for raw data, image height for processed data
+    /// height - number of samples for raw data, image height for processed data
 
-	int h;
+    int h;
 
-	/// data sample size in bits
+    /// data sample size in bits
 
-	int ss;
+    int ss;
 
-	/// roi - upper left (x)
+    /// roi - upper left (x)
 
-	int ulx;
+    int ulx;
 
-	/// roi - upper left (y)
+    /// roi - upper left (y)
 
-	int uly;
+    int uly;
 
-	/// roi - upper right (x)
+    /// roi - upper right (x)
 
-	int urx;
+    int urx;
 
-	/// roi - upper right (y)
+    /// roi - upper right (y)
 
-	int ury;
+    int ury;
 
-	/// roi - bottom right (x)
+    /// roi - bottom right (x)
 
-	int brx;
+    int brx;
 
-	/// roi - bottom right (y)
+    /// roi - bottom right (y)
 
-	int bry;
+    int bry;
 
-	/// roi - bottom left (x)
+    /// roi - bottom left (x)
 
-	int blx;
+    int blx;
 
-	/// roi - bottom left (y)
+    /// roi - bottom left (y)
 
-	int bly;
+    int bly;
 
-	/// probe identifier - additional probe information can be found using this id
+    /// probe identifier - additional probe information can be found using this id
 
-	int probe;
+    int probe;
 
-	/// transmit frequency
+    /// transmit frequency
 
-	int txf;
+    int txf;
 
-	/// sampling frequency
+    /// sampling frequency
 
-	int sf;
+    int sf;
 
-	/// data rate - frame rate or pulse repetition period in Doppler modes
+    /// data rate - frame rate or pulse repetition period in Doppler modes
 
-	int dr;
+    int dr;
 
-	/// line density - can be used to calculate element spacing if pitch and native # elements is known
+    /// line density - can be used to calculate element spacing if pitch and native # elements is known
 
-	int ld;
+    int ld;
 
-	/// extra information - ensemble for color RF
+    /// extra information - ensemble for color RF
 
-	int extra;
+    int extra;
 
 } FrameHeader;
 
 typedef struct tagRxFrameHeader {
-	/// The Frame Header of US Data
-	FrameHeader frh;
-	/// The Frame Tag of US Data
-	double frametag;
+    /// The Frame Header of US Data
+    FrameHeader frh;
+    /// The Frame Tag of US Data
+    double frametag;
 
 } RxFrameHeader;
 
 struct Probe {
-	/// Name of probe    
-	char name[80];
-	/// ID of the probe. The code pins programmed into connector.
-	int id;
-	/// Type of probe. See the probeType enumeration.
-	int type;
-	/// Number of elements in the probe.
-	int elements;
-	/// Pitch, or the distance between elements in microns.
-	int pitch;
-	/// Radius of probe in 1/1000th of degree.
-	int radius;
-	/// Central frequency of probe in Hz.
-	int centerFrequency;
-	/// Frequency bandwidth in Hz
-	int frequencyBandwidth;
-	/// Transmit offset in number of elements
-	int transmitoffset;
-	/// Maximum steer angle allowable in 1/1000th of degree.
-	int maxsteerangle;
-	/// Maximum focus distance in microns for calculating dynamic receive time delays.
-	int maxfocusdistance;
-	/// Minimum line duration for one scanline in microseconds.
-	int minlineduration;
-	/// Minimum focus distance for one Doppler scanline.
-	int minFocusDistanceDoppler;
-	/// Pin offset if the probe element #0 starts at a different pin.
-	unsigned char pinOffset;
-	char unusedC;
-	short unusedS;
-	/// Field of view of the motor range in 1/1000th of degree.
-	int motorFOV;
-	/// Depth of entry for the biopsy needle in microns.
-	int biopsyDepth;
-	/// Angle of entry for the biopsy needle in 1/1000th of degree.
-	int biopsyAngle;
-	/// Initial target distance at probe surface in microns.
-	int biopsyDistance;
-	/// Probe options.
-	int options;
-	/// Maximum number of motor steps if the probe has a motor
-	int motorSteps;
-	/// Radius of motor.
-	int motorRadius;
-	/// If the motor makes audible noise, set this flag to correct it
-	unsigned short motorMinTimeBetweenPulses;
-	/// Code for how the motor gets to home position.
-	char motorHomeMethod;
-	/// Default width in pixels of the biopsy guide.
-	unsigned char biopsyWidth;
+    /// Name of probe    
+    char name[80];
+    /// ID of the probe. The code pins programmed into connector.
+    int id;
+    /// Type of probe. See the probeType enumeration.
+    int type;
+    /// Number of elements in the probe.
+    int elements;
+    /// Pitch, or the distance between elements in microns.
+    int pitch;
+    /// Radius of probe in 1/1000th of degree.
+    int radius;
+    /// Central frequency of probe in Hz.
+    int centerFrequency;
+    /// Frequency bandwidth in Hz
+    int frequencyBandwidth;
+    /// Transmit offset in number of elements
+    int transmitoffset;
+    /// Maximum steer angle allowable in 1/1000th of degree.
+    int maxsteerangle;
+    /// Maximum focus distance in microns for calculating dynamic receive time delays.
+    int maxfocusdistance;
+    /// Minimum line duration for one scanline in microseconds.
+    int minlineduration;
+    /// Minimum focus distance for one Doppler scanline.
+    int minFocusDistanceDoppler;
+    /// Pin offset if the probe element #0 starts at a different pin.
+    unsigned char pinOffset;
+    char unusedC;
+    short unusedS;
+    /// Field of view of the motor range in 1/1000th of degree.
+    int motorFOV;
+    /// Depth of entry for the biopsy needle in microns.
+    int biopsyDepth;
+    /// Angle of entry for the biopsy needle in 1/1000th of degree.
+    int biopsyAngle;
+    /// Initial target distance at probe surface in microns.
+    int biopsyDistance;
+    /// Probe options.
+    int options;
+    /// Maximum number of motor steps if the probe has a motor
+    int motorSteps;
+    /// Radius of motor.
+    int motorRadius;
+    /// If the motor makes audible noise, set this flag to correct it
+    unsigned short motorMinTimeBetweenPulses;
+    /// Code for how the motor gets to home position.
+    char motorHomeMethod;
+    /// Default width in pixels of the biopsy guide.
+    unsigned char biopsyWidth;
 };
 
 struct data_frame_queue {
-	char *data;
-	int number_frames;
-	int height;
-	int width;
-	double itime;
-	//Probe prb;
-	float spacing[3];
-	FrameHeader fhr;
-	igtl::USMessage::Pointer ImgMsg;
+    char *data;
+    int number_frames;
+    int height;
+    int width;
+    double itime;
+    //Probe prb;
+    float spacing[3];
+    FrameHeader fhr;
+    igtl::USMessage::Pointer ImgMsg;
 };
 
 void initialize_shared_memory();

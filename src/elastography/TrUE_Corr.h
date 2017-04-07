@@ -15,11 +15,11 @@
 #include <math.h>
 
 double EstimateCorr(const double Tr1[16], const double Tr2[16],
-		const int ROIrect[4], const double ScaleXY[2], const double effAx,
-		const double Sig[2]);
+        const int ROIrect[4], const double ScaleXY[2], const double effAx,
+        const double Sig[2]);
 
 void GetDis(const double Tr1[16], const double Tr2[16], const int ROIrect[4],
-		const double ScaleXY[2], double outputDD[3]);
+        const double ScaleXY[2], double outputDD[3]);
 
 bool gluInvertMatrix(const double m[16], double invOut[16]);
 
