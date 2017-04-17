@@ -12,30 +12,8 @@ set(CMAKE_MODULE_PATH /home/xingtong/Downloads/libevent-2.1.8-stable)
 find_package(Event)
 include_directories(${EVENT_INCLUDE_DIR})
 
-#set(CMAKE_PREFIX_PATH /usr/local/lib/igtl)
-#find_package(OpenIGTLinkMUSiiC)
-#include_directories(${OpenIGTLinkMUSiiC_INCLUDE_DIRS})
-
-#set(CMAKE_PREFIX_PATH /usr/local/lib/igtl)
-#find_package(OpenIGTLink)
-#include_directories(${OpenIGTLink_INCLUDE_DIRS})
-
-#find_package(Boost REQUIRED COMPONENTS thread system)
-#include_directories(${Boost_INCLUDE_DIRS})
-
 find_package( OpenCV REQUIRED )
 include_directories(${OpenCV_INCLUDE_PATH})
-
-#find_package(CUDA REQUIRED)
-#include_directories(${CUDA_INCLUDE_DIRS})
-
-##TITAN X GPU specific
-#LIST( APPEND CUDA_NVCC_FLAGS "-arch=sm_61" )
-#set(CUDA_SEPARABLE_COMPILATION ON)
-#set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-
-#find_package(Boost REQUIRED COMPONENTS thread system)
-#include_directories(${Boost_INCLUDE_DIRS})
 
 set(CMAKE_PREFIX_PATH /usr/local/lib/igtl)
 find_package(OpenIGTLink)
@@ -51,8 +29,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
-#TITAN X GPU specific
-LIST( APPEND CUDA_NVCC_FLAGS "-arch=sm_61" )
 set(CUDA_SEPARABLE_COMPILATION ON)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
@@ -79,79 +55,24 @@ catkin_package(
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
+
 #find_library (OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH NAMES ${OpenIGTLinkMUSiiC_LIBRARIES} PATHS /usr/local/lib/igtl)
-
-#cuda_add_executable( MySocketServer
-#    src/image_server.cpp
-	#src/elastography/initializer.cpp
-	#src/elastography/reader.cpp
-	#src/elastography/ncc_thread.cpp
-	#src/elastography/TrUE_Corr.cpp
-	#src/elastography/matrix_io.cu
-	#src/elastography/ncc.cu
-	#src/elastography/scan_conversion.cu
-#
-#	src/elastography/common.h
-#	src/elastography/concurrent_queue.h
-#	src/elastography/differentiation.h
-#	src/elastography/initializer.h
-#	src/elastography/ncc.h
-#	src/elastography/ncc_thread.h
-#	src/elastography/reader.h
-#	src/elastography/scan_conversion.h
-#	src/elastography/TrUE_Corr.h
-#	src/elastography/matrix_io.h
-#	src/elastography/median_filter.h
-#	src/elastography/normalization.h
-#)
-add_executable(MySocketClient src/main_IGTLclient.cpp src/IGTLclient.cpp )
-
-target_link_libraries( MySocketClient 
-	pthread
-	${EVENT_LIBRARY}
-	${OpenIGTLinkMUSiiC_LIBRARIES}
-	#${OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH}
-	${OpenIGTLink_LIBRARIES}
-	${Boost_LIBRARIES}
-	${catkin_LIBRARIES}
-	${OpenCV_LIBRARIES}
-)
-
-
-#target_link_libraries( MySocketServer
-	#${OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH}
-	#${OpenIGTLink_LIBRARIES}
-	#${OpenCV_LIBRARIES}
-	#${Boost_LIBRARIES}
-	#${CUDA_LIBRARIES}
-	#pthread
+#add_executable(MySocketClient 
+#	src/main_IGTLclient.cpp 
+#	src/IGTLclient.cpp )
+#target_link_libraries( MySocketClient 
+#	pthread
+#	${EVENT_LIBRARY}
+#	${OpenIGTLinkMUSiiC_LIBRARIES}
+#	${OpenIGTLink_LIBRARIES}
+#	${Boost_LIBRARIES}
+#	${catkin_LIBRARIES}
+#	${OpenCV_LIBRARIES}
 #)
 
-cuda_add_executable( MySocketServer
-	src/image_server.cpp
-	#src/elastography/initializer.cpp
-	#src/elastography/reader.cpp
-	#src/elastography/ncc_thread.cpp
-	#src/elastography/TrUE_Corr.cpp
-	#src/elastography/matrix_io.cu
-	#src/elastography/ncc.cu
-	#src/elastography/scan_conversion.cu
-
-	#src/elastography/common.h
-	#src/elastography/concurrent_queue.h
-	#src/elastography/differentiation.h
-	#src/elastography/initializer.h
-	#src/elastography/ncc.h
-	#src/elastography/ncc_thread.h
-	#src/elastography/reader.h
-	#src/elastography/scan_conversion.h
-	#src/elastography/TrUE_Corr.h
-	#src/elastography/matrix_io.h
-	#src/elastography/median_filter.h
-	#src/elastography/normalization.h
-)
-	
-	
+add_executable( MySocketServer
+	src/image_server.cpp )
+		
 target_link_libraries( MySocketServer 
 	${OpenIGTLinkMUSiiC_LIBRARIES}
 	${OpenIGTLink_LIBRARIES}
@@ -159,4 +80,33 @@ target_link_libraries( MySocketServer
 	${CUDA_LIBRARIES}
 	${OpenCV_LIBRARIES}
 	pthread
+)
+
+cuda_add_executable( MySocketClient
+	src/main_IGTLclient.cpp 
+	src/IGTLclient.cpp 
+	src/Elastography.cpp
+	src/elastography/matrix_io.cu
+	src/elastography/ncc.cu
+	src/elastography/scan_conversion.cu
+	
+	src/IGTLclient.h
+    src/Elastography.h
+	src/elastography/concurrent_queue.h
+	src/elastography/ncc.h
+	src/elastography/scan_conversion.h
+	src/elastography/matrix_io.h
+)
+	
+	
+target_link_libraries( MySocketClient 
+	${CUDA_LIBRARIES}
+	${EVENT_LIBRARY}
+	${OpenIGTLinkMUSiiC_LIBRARIES}
+	${OpenIGTLink_LIBRARIES}
+	${Boost_LIBRARIES}
+	${catkin_LIBRARIES}
+	${OpenCV_LIBRARIES}
+	pthread
+	X11
 )

@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
 
 	ros::init(argc, argv, "my_socket_client");
 	printf("main thread: %lu \n", IGTL_client::getThreadId());
-	pointer = new IGTL_client();
+	pointer = new IGTL_client(argc, argv);
 	pointer->run();
 
 	while (ros::ok()) {

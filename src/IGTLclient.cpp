@@ -7,7 +7,7 @@
 
 #include "IGTLclient.h"
 
-IGTL_client::IGTL_client() {
+IGTL_client::IGTL_client(int argc, char **argv) {
 	// Set this flag to true if you are ready to receive the header of the next image
 	receiving_state_ = SEARCHING_HEADER;
 	bytes_received_ = 0;
@@ -16,6 +16,16 @@ IGTL_client::IGTL_client() {
 	header_msg_ = igtl::MessageHeader::New();
 	us_msg_ = igtl::USMessage::New();
 	us_image_count_ = 0;
+
+    if (argc != 11) {
+        std::cout << "number of parameters is not right\n";
+        return;
+    }
+
+	RF_or_BMODE_ = atoi(argv[10]);
+	elastography_ = boost::make_shared<Elastography>(argc - 1, argv);
+
+	continue_write_image_ = false;
 }
 
 IGTL_client::~IGTL_client() {
@@ -23,18 +33,18 @@ IGTL_client::~IGTL_client() {
 	cv::destroyAllWindows();
 	socket_thread_->join();
 	ros_thread_->join();
+	elastography_thread_->join();
 	ros::shutdown();
 }
 
-void IGTL_client::elastographyGenerating() {
-
-}
 
 void IGTL_client::run() {
+    XInitThreads();
 	socket_thread_ = boost::make_shared < boost::thread
 			> (boost::bind(&IGTL_client::socket_run, this));
 	ros_thread_ = boost::make_shared < boost::thread
 			> (boost::bind(&IGTL_client::ros_run, this));
+	elastography_thread_ = boost::make_shared<boost::thread> (boost::bind(&Elastography::CalculateElastography, elastography_));
 }
 
 unsigned long IGTL_client::getThreadId() {
@@ -46,7 +56,9 @@ unsigned long IGTL_client::getThreadId() {
 }
 
 void readcb_global(struct bufferevent *bev, void *ctx) {
-	printf("readcb thread: %lu \n", pointer->getThreadId());
+#ifdef DEBUG_OUTPUT
+    printf("readcb thread: %lu \n", pointer->getThreadId());
+#endif
 	struct evbuffer *input, *output;
 	char *dummy;
 	char Device_type[DEVICE_TYPE_BYTES];
@@ -58,7 +70,9 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 	// which means possible version number, then go unpack and see if we get a right header
 	if (pointer->receiving_state_ == IGTL_client::SEARCHING_HEADER) {
 
+#ifdef DEBUG_OUTPUT
 	    std::cout << "Searching header..\n";
+#endif
 		// Initialize candidate header
 		if (pointer->bytes_received_ == 0) {
 			candidate_header = (unsigned char *) malloc(SANITY_CHECK_BYTES);
@@ -80,7 +94,9 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 				memcpy(Device_type, (void *) (candidate_header + 2),
 						DEVICE_TYPE_BYTES);
 				if ((V == 1 || V == 2) && (strcmp(Device_type, "IMAGE") == 0)) {
+#ifdef DEBUG_OUTPUT
 					std::cout << "Valid header found! \n";
+#endif
 					pointer->receiving_state_ = IGTL_client::RECEIVING_HEADER;
 					memcpy(pointer->header_msg_->GetPackPointer(),
 							(void *) candidate_header, SANITY_CHECK_BYTES);
@@ -111,7 +127,9 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 									DEVICE_TYPE_BYTES);
 							if ((V == 1 || V == 2)
 									&& (strcmp(Device_type, "IMAGE") == 0)) {
+#ifdef DEBUG_OUTPUT
 								std::cout << "Valid header found! \n";
+#endif
 								pointer->receiving_state_ =
 										IGTL_client::RECEIVING_HEADER;
 								memcpy(pointer->header_msg_->GetPackPointer(),
@@ -132,8 +150,10 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 			}
 
 		} else {
+#ifdef DEBUG_OUTPUT
 			std::cerr
 					<< "zero byte received, waiting to receive more data to complete a header sanity check\n";
+#endif
 			return;
 		}
 
@@ -141,8 +161,9 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 
 	// Receiving header
 	if (pointer->receiving_state_ == IGTL_client::RECEIVING_HEADER) {
+#ifdef DEBUG_OUTPUT
 	    std::cout << "Receiving header..\n";
-
+#endif
 		// If we start to receive a new header, first initialize the HeaderMessage object
 		if (pointer->bytes_received_ == 0) {
 			pointer->header_msg_->InitPack();
@@ -159,17 +180,20 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 								- pointer->bytes_received_);
 
 		if (r <= 0) {
+#ifdef DEBUG_OUTPUT
 			std::cerr
 					<< "zero byte received, waiting to receive more data to complete a message header\n";
+#endif
 			return;
 
 		} else {
 
 			pointer->bytes_received_ += r;
+#ifdef DEBUG_OUTPUT
 			std::cout << "Have read header bytes: " << pointer->bytes_received_
 					<< " Ideal header bytes: "
 					<< pointer->header_msg_->GetPackSize() << std::endl;
-
+#endif
 			// Header receiving complete
 			if (pointer->bytes_received_
 					>= pointer->header_msg_->GetPackSize()) {
@@ -189,14 +213,19 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 							== 0) {
 						pointer->receiving_state_ = IGTL_client::RECEIVING_BODY;
 						pointer->bytes_received_ = 0;
+					} else if (strcmp(pointer->header_msg_->GetDeviceName(), "MD_BMODE_2D") == 0){
+                        pointer->receiving_state_ = IGTL_client::RECEIVING_BODY;
+                        pointer->bytes_received_ = 0;
 					} else {
-						// Didn't receive the desired type of message, skip it and research for desired header
-					    std::cout << "Device Name is not MD_US_2D\n";
-						pointer->receiving_state_ =
-								IGTL_client::SEARCHING_HEADER;
-						evbuffer_remove(input, dummy, MAX_LINE);
-						pointer->bytes_received_ = 0;
-						return;
+#ifdef DEBUG_OUTPUT
+                        // Didn't receive the desired type of message, skip it and research for desired header
+                        std::cout << "Device Name is not MD_US_2D or MD_BMODE_2D\n";
+#endif
+                        pointer->receiving_state_ =
+                                IGTL_client::SEARCHING_HEADER;
+                        evbuffer_remove(input, dummy, MAX_LINE);
+                        pointer->bytes_received_ = 0;
+                        return;
 					}
 				} else {
 					// If the header unpacking failed, which means we didn't find a valid header
@@ -224,8 +253,9 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 
 	// Receiving body
 	if (pointer->receiving_state_ == IGTL_client::RECEIVING_BODY) {
-
+#ifdef DEBUG_OUTPUT
 	    std::cout << "Receiving Body..\n";
+#endif
 		// Initialize US Message when starting to receive body part
 		if (pointer->bytes_received_ == 0) {
 			pointer->us_msg_->SetMessageHeader(pointer->header_msg_);
@@ -242,16 +272,19 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 								- pointer->bytes_received_);
 
 		if (r <= 0) {
+#ifdef DEBUG_OUTPUT
 			std::cerr
 					<< "zero byte received, waiting to receive more data to complete the US body part\n";
+#endif
 			return;
 		} else {
 
 			pointer->bytes_received_ += r;
+#ifdef DEBUG_OUTPUT
 			std::cout << "Have read image bytes: " << pointer->bytes_received_
 					<< " Ideal image bytes: "
 					<< pointer->us_msg_->GetPackBodySize() << std::endl;
-
+#endif
 			if (pointer->bytes_received_
 					>= pointer->us_msg_->GetPackBodySize()) {
 				// A complete US image received
@@ -262,132 +295,151 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 				if (c & igtl::MessageHeader::UNPACK_BODY) {
 
 					cv::namedWindow("Received image", CV_WINDOW_NORMAL);
-					int size[3];          // image dimension
-					float spacing[3];       // spacing (mm/pixel)
-					int svsize[3];        // sub-volume size
-					int svoffset[3];      // sub-volume offset
-					int scalarType;       // scalar type
-
-					scalarType = pointer->us_msg_->GetScalarType();
-					pointer->us_msg_->GetDimensions(size);
-					pointer->us_msg_->GetSpacing(spacing);
-					pointer->us_msg_->GetSubVolume(svsize, svoffset);
-					int Angle = pointer->us_msg_->GetExtensionAngle();
-					int FPS = pointer->us_msg_->GetFPS();
-					int FocusDepth = pointer->us_msg_->GetFocusDepth();
-					int FocusSpacing = pointer->us_msg_->GetFocusSpacing();
-					int FocusCount = (int) pointer->us_msg_->GetFocus_Count();
-					int ImageSize = pointer->us_msg_->GetImageSize();
-					int LineDensity = pointer->us_msg_->GetLineDensity();
-					int NumComponents = pointer->us_msg_->GetNumComponents();
-					int ProbeAngle = pointer->us_msg_->GetProbeAngle();
-					int ProbeID = pointer->us_msg_->GetProbeID();
-					int SamplingFrequency =
+					pointer->scalarType_ = pointer->us_msg_->GetScalarType();
+					pointer->us_msg_->GetDimensions(pointer->size_);
+					pointer->us_msg_->GetSpacing(pointer->spacing_);
+					pointer->us_msg_->GetSubVolume(pointer->svsize_, pointer->svoffset_);
+					pointer->Angle_ = pointer->us_msg_->GetExtensionAngle();
+					pointer->FPS_ = pointer->us_msg_->GetFPS();
+					pointer->FocusDepth_ = pointer->us_msg_->GetFocusDepth();
+					pointer->FocusSpacing_ = pointer->us_msg_->GetFocusSpacing();
+					pointer->FocusCount_ = (int) pointer->us_msg_->GetFocus_Count();
+					pointer->ImageSize_ = pointer->us_msg_->GetImageSize();
+					pointer->LineDensity_ = pointer->us_msg_->GetLineDensity();
+					pointer->NumComponents_ = pointer->us_msg_->GetNumComponents();
+					pointer->ProbeAngle_ = pointer->us_msg_->GetProbeAngle();
+					pointer->ProbeID_ = pointer->us_msg_->GetProbeID();
+					pointer->SamplingFrequency_ =
 							pointer->us_msg_->GetSamplingFrequency();
-					int TransmitFrequency =
+					pointer->TransmitFrequency_ =
 							pointer->us_msg_->GetTransmitFrequency();
-					int Pitch = pointer->us_msg_->GetPitch();
-					int Radius = pointer->us_msg_->GetRadius();
-					int ReferenceCount = pointer->us_msg_->GetReferenceCount();
-					int SteeringAngle = pointer->us_msg_->GetSteeringAngle();
-					int USDataType = pointer->us_msg_->GetUSDataType();
-
+					pointer->Pitch_ = pointer->us_msg_->GetPitch();
+					pointer->Radius_ = pointer->us_msg_->GetRadius();
+					pointer->ReferenceCount_ = pointer->us_msg_->GetReferenceCount();
+					pointer->SteeringAngle_ = pointer->us_msg_->GetSteeringAngle();
+					pointer->USDataType_ = pointer->us_msg_->GetUSDataType();
+#ifdef DEBUG_OUTPUT
 					std::cerr << "Device Name           : "
 							<< pointer->us_msg_->GetDeviceName() << std::endl;
-					std::cerr << "Scalar Type           : " << scalarType
+					std::cerr << "Scalar Type           : " << pointer->scalarType_
 							<< std::endl;
-					std::cerr << "Dimensions            : (" << size[0] << ", "
-							<< size[1] << ", " << size[2] << ")" << std::endl;
-					std::cerr << "Spacing               : (" << spacing[0]
-							<< ", " << spacing[1] << ", " << spacing[2] << ")"
+					std::cerr << "Dimensions            : (" << pointer->size_[0] << ", "
+							<< pointer->size_[1] << ", " << pointer->size_[2] << ")" << std::endl;
+					std::cerr << "Spacing               : (" << pointer->spacing_[0]
+							<< ", " << pointer->spacing_[1] << ", " << pointer->spacing_[2] << ")"
 							<< std::endl;
-					std::cerr << "Sub-Volume dimensions : (" << svsize[0]
-							<< ", " << svsize[1] << ", " << svsize[2] << ")"
+					std::cerr << "Sub-Volume dimensions : (" << pointer->svsize_[0]
+							<< ", " << pointer->svsize_[1] << ", " << pointer->svsize_[2] << ")"
 							<< std::endl;
-					std::cerr << "Sub-Volume offset     : (" << svoffset[0]
-							<< ", " << svoffset[1] << ", " << svoffset[2] << ")"
+					std::cerr << "Sub-Volume offset     : (" << pointer->svoffset_[0]
+							<< ", " << pointer->svoffset_[1] << ", " << pointer->svoffset_[2] << ")"
 							<< std::endl;
-					std::cerr << "Angle                 : " << Angle
+					std::cerr << "Angle                 : " << pointer->Angle_
 							<< std::endl;
-					std::cerr << "FPS                   : " << FPS << std::endl;
-					std::cerr << "FocusDepth            : " << FocusDepth
+					std::cerr << "FPS                   : " << pointer->FPS_ << std::endl;
+					std::cerr << "FocusDepth            : " << pointer->FocusDepth_
 							<< std::endl;
-					std::cerr << "FocusSpacing          : " << FocusSpacing
+					std::cerr << "FocusSpacing          : " << pointer->FocusSpacing_
 							<< std::endl;
-					std::cerr << "FocusCount            : " << FocusCount
+					std::cerr << "FocusCount            : " << pointer->FocusCount_
 							<< std::endl;
-					std::cerr << "ImageSize             : " << ImageSize
+					std::cerr << "ImageSize             : " << pointer->ImageSize_
 							<< std::endl;
-					std::cerr << "LineDensity           : " << LineDensity
+					std::cerr << "LineDensity           : " << pointer->LineDensity_
 							<< std::endl;
-					std::cerr << "NumComponents         : " << NumComponents
+					std::cerr << "NumComponents         : " << pointer->NumComponents_
 							<< std::endl;
-					std::cerr << "ProbeAngle            : " << ProbeAngle
+					std::cerr << "ProbeAngle            : " << pointer->ProbeAngle_
 							<< std::endl;
-					std::cerr << "ProbeID               : " << ProbeID
+					std::cerr << "ProbeID               : " << pointer->ProbeID_
 							<< std::endl;
-					std::cerr << "SamplingFrequency     : " << SamplingFrequency
+					std::cerr << "SamplingFrequency     : " << pointer->SamplingFrequency_
 							<< std::endl;
-					std::cerr << "TransmitFrequency     : " << TransmitFrequency
+					std::cerr << "TransmitFrequency     : " << pointer->TransmitFrequency_
 							<< std::endl;
-					std::cerr << "Pitch                 : " << Pitch
+					std::cerr << "Pitch                 : " << pointer->Pitch_
 							<< std::endl;
-					std::cerr << "Radius                : " << Radius
+					std::cerr << "Radius                : " << pointer->Radius_
 							<< std::endl;
-					std::cerr << "ReferenceCount        : " << ReferenceCount
+					std::cerr << "ReferenceCount        : " << pointer->ReferenceCount_
 							<< std::endl;
-					std::cerr << "SteeringAngle         : " << SteeringAngle
+					std::cerr << "SteeringAngle         : " << pointer->SteeringAngle_
 							<< std::endl;
-					std::cerr << "USDataType            : " << USDataType
+					std::cerr << "USDataType            : " << pointer->USDataType_
 							<< std::endl;
-
-					if (scalarType == igtl::ImageMessage::TYPE_UINT8) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_8UC(size[2]));
-					} else if (scalarType == igtl::ImageMessage::TYPE_INT8) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_8SC(size[2]));
-					} else if (scalarType == igtl::ImageMessage::TYPE_INT16) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_16SC(size[2]));
-					} else if (scalarType == igtl::ImageMessage::TYPE_UINT16) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_16UC(size[2]));
-					} else if (scalarType == igtl::ImageMessage::TYPE_INT32) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_32SC(size[2]));
-					} else if (scalarType == igtl::ImageMessage::TYPE_FLOAT32) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_32FC(size[2]));
-					} else if (scalarType == igtl::ImageMessage::TYPE_FLOAT64) {
-						pointer->us_img_ = cv::Mat::zeros(size[0], size[1],
-								CV_64FC(size[2]));
+#endif
+					if (pointer->scalarType_ == igtl::ImageMessage::TYPE_UINT8) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_8UC(pointer->size_[2]));
+					} else if (pointer->scalarType_ == igtl::ImageMessage::TYPE_INT8) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_8SC(pointer->size_[2]));
+					} else if (pointer->scalarType_ == igtl::ImageMessage::TYPE_INT16) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_16SC(pointer->size_[2]));
+					} else if (pointer->scalarType_ == igtl::ImageMessage::TYPE_UINT16) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_16UC(pointer->size_[2]));
+					} else if (pointer->scalarType_ == igtl::ImageMessage::TYPE_INT32) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_32SC(pointer->size_[2]));
+					} else if (pointer->scalarType_ == igtl::ImageMessage::TYPE_FLOAT32) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_32FC(pointer->size_[2]));
+					} else if (pointer->scalarType_ == igtl::ImageMessage::TYPE_FLOAT64) {
+						pointer->us_img_ = cv::Mat::zeros(pointer->size_[1], pointer->size_[0],
+								CV_64FC(pointer->size_[2]));
 					} else {
 						perror("No supported type found");
 						return;
 					}
 
-					if (NumComponents == 1) {
+					if (pointer->NumComponents_ == 1) {
+
+					    // If received data is RF, we need to push it into elastography class for computation
+	                    if (strcmp(pointer->header_msg_->GetDeviceName(), "MD_US_2D")
+	                            == 0) {
+	                        time_t now;
+	                        time(&now);
+	                        pointer->elastography_->PushRFData(pointer->us_msg_->GetScalarPointer(),
+	                                pointer->us_msg_->GetImageSize(), pointer->size_[1], pointer->size_[0],
+	                                pointer->spacing_[0], pointer->spacing_[1], pointer->spacing_[2],
+	                                pointer->LineDensity_, pointer->SamplingFrequency_,
+	                                pointer->TransmitFrequency_, pointer->FPS_, now);
+#ifdef DEBUG_OUTPUT
+	                        std::cout << "Push RF Data complete\n";
+#endif
+	                    }
+
 						memcpy((void *) pointer->us_img_.data,
 								pointer->us_msg_->GetScalarPointer(),
 								pointer->us_msg_->GetImageSize());
 
-			            cv::Mat Display_image, Display_image_normalized;
-			            pointer->us_img_.convertTo(Display_image, CV_32F);
-
-			            double min, max;
-			            std::cout << "min: " << min << " max: " << max << std::endl;
-			            cv::minMaxLoc(Display_image, &min, &max);
-			            Display_image_normalized = (Display_image - min) / (max - min) * 255.0;
-			            cv::imshow("Received image", Display_image);
-			            cv::waitKey(100);
-			            if(pointer->us_image_count_ < 100) {
-
-			                cv::imwrite("/home/xingtong/Pictures/US/" +
-			                        boost::lexical_cast<std::string>(pointer->us_image_count_)
-			                + ".tiff",pointer->us_img_);
+			            cv::imshow("Received image", pointer->us_img_);
+			            int key_pressed = cv::waitKey(100);
+			            // whether or not to start writing image in a continuous way
+			            if(key_pressed == 'c') {
+#ifdef DEBUG_OUTPUT
+			                std::cout << "Continue writing toggled\n";
+#endif
+			                pointer->continue_write_image_ = !pointer->continue_write_image_;
+			            } else if(key_pressed == 's') {
+#ifdef DEBUG_OUTPUT
+			                std::cout << "Capture a single frame\n";
+#endif
+			                pointer->continue_write_image_ = false;
+                            cv::imwrite("/home/xingtong/Pictures/US/BMODE_SINGLE_" +
+                                    boost::lexical_cast<std::string>(pointer->us_image_count_)
+                            + ".tiff", pointer->us_img_);
+                            pointer->us_image_count_++;
 			            }
-			            pointer->us_image_count_++;
+
+			            if (pointer->continue_write_image_ == true) {
+                            cv::imwrite("/home/xingtong/Pictures/US/BMODE_" +
+                                    boost::lexical_cast<std::string>(pointer->us_image_count_)
+                            + ".tiff", pointer->us_img_);
+                            pointer->us_image_count_++;
+			            }
 					}
 
 					bufferevent_setwatermark(bev, EV_READ,
@@ -395,7 +447,9 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 							pointer->us_msg_->GetPackSize());
 
 				} else {
+#ifdef DEBUG_OUTPUT
 					std::cerr << "US Image body unpacking failed.\n";
+#endif
 					return;
 				}
 
@@ -419,7 +473,7 @@ void eventcb_global(struct bufferevent *bev, short event, void *ctx) {
 	if (event & BEV_EVENT_CONNECTED) {
 		/* We're connected to 127.0.0.1:8080.   Ordinarily we'd do
 		 something here, like start reading or writing. */
-		printf("We are connected to server!\n");
+		printf("We have connected to server!\n");
 		//TODO: This needs to be set according to the image size
 		// The minimum value is how many bytes we need to have before invoking the read callback function
 		// For robustness consideration, suppose we don't know the exact number of bytes
@@ -782,18 +836,20 @@ void IGTL_client::socket_run() {
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = inet_addr("10.162.34.81"); //htonl(0x7f000001); /* 127.0.0.1 */
-	sin.sin_port = htons(23877); /* Port 8080 */
+    //23978 port for 2D Image
+    //23877 port for RFServer
 
-	//23877 port for RFServer
-	//DeviceName is M_US_2D
+	if(RF_or_BMODE_ == 0) {
+	    std::cout << "Plan to connect to RF server\n";
+	    sin.sin_port = htons(23877);
+	} else {
+	    std::cout << "Plan to connect to BMODE server\n";
+	    sin.sin_port = htons(23978);
+	}
 
+	//DeviceName is MD_US_2D or MD_BMODE_2D
 	bev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
-	//boost::function<void (struct bufferevent*, void*)> f_read( boost::bind(&readcb_test, this, _1, _2) );
-	//boost::function<void (struct bufferevent*, short int, void*)> f_event( boost::bind(&eventcb_test, this, _1, _2, _3) );
-
 	bufferevent_setcb(bev, readcb_global, NULL, eventcb_global, NULL);
-//    bufferevent_setcb(bev, , NULL, IGTL_client::eventcb,
-//            NULL);
 	/* Note that you only get a BEV_EVENT_CONNECTED event if you launch the connect()
 	 * attempt using bufferevent_socket_connect(). If you call connect() on your own,
 	 * the connection gets reported as a write.

@@ -61,16 +61,21 @@
 #include <igtlBindMessage.h>
 #endif //OpenIGTLink_PROTOCOL_VERSION >= 2
 
+#include <X11/Xlib.h>
+
 #include "igtlMUSMessage.h"
+#include "Elastography.h"
 
 #define MAX_LINE 100000000
 
 #define SANITY_CHECK_BYTES 14
 #define DEVICE_TYPE_BYTES 12
 
+//#define DEBUG_OUTPUT
+
 class IGTL_client {
 public:
-	IGTL_client();
+	IGTL_client(int argc, char **argv);
 	virtual ~IGTL_client();
 	void socket_run();
 	void ros_run();
@@ -79,7 +84,6 @@ public:
 	static unsigned long getThreadId();
 	void readcb(struct bufferevent *bev, void *ctx);
 	void eventcb(struct bufferevent *bev, short event, void *ctx);
-	void elastographyGenerating();
 	static int ReceiveTransform(evbuffer * buf, igtl::MessageHeader * header);
 	static int ReceivePosition(evbuffer * buf, igtl::MessageHeader * header);
 	static int ReceiveImage(evbuffer * buf, igtl::MessageHeader * header);
@@ -99,9 +103,40 @@ public:
 		RECEIVING_HEADER = 0, RECEIVING_BODY, SEARCHING_HEADER
 	};
 
+	bool continue_write_image_;
+
+    int Angle_;
+    int FPS_;
+    int FocusDepth_;
+    int FocusSpacing_;
+    int FocusCount_;
+    int ImageSize_;
+    int LineDensity_;
+    int NumComponents_;
+    int ProbeAngle_;
+    int ProbeID_;
+    int SamplingFrequency_;
+    int TransmitFrequency_;
+    int Pitch_;
+    int Radius_;
+    int ReferenceCount_;
+    int SteeringAngle_;
+    int USDataType_;
+
+    int size_[3];          // image dimension
+    float spacing_[3];       // spacing (mm/pixel)
+    int svsize_[3];        // sub-volume size
+    int svoffset_[3];      // sub-volume offset
+    int scalarType_;       // scalar type
+
+    int RF_or_BMODE_; //0 for RF, 1 for BMODE
+    boost::shared_ptr<Elastography> elastography_;
+
 private:
 	boost::shared_ptr<boost::thread> socket_thread_;
 	boost::shared_ptr<boost::thread> ros_thread_;
+	boost::shared_ptr<boost::thread> elastography_thread_;
+
 
 };
 
