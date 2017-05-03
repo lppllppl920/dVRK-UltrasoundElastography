@@ -78,29 +78,22 @@ void Elastography::CalculateElastography() {
 // vector_size_ is used to specify how many frames do we want to use to calculate a single strain image
     bool first_time = true;
 
-    if (is_burst_ == 0) {
+    for (int vector_loop = 0; vector_loop < vector_size_; vector_loop++) {
+        std::cout << "Waiting to get rf data " << vector_loop << " ..."
+                << std::endl;
+        in_queue_.wait_and_pop(rf_data_);
+        std::cout << "elastography test\n";
+        uncomp_ = rf_data_->data;
+        height_ = rf_data_->height;
+        width_ = rf_data_->width;
+        no_of_frames_ = rf_data_->number_frames;
+        time_ = rf_data_->itime;
+        fhr_ = rf_data_->fhr;
+        set_threshold_values((float) fhr_.ss, (float) fhr_.uly,
+                (float) fhr_.ulx, (float) fhr_.ury, (float) fhr_.urx,
+                (float) fhr_.brx, (float) fhr_.bry);
 
-        for (int vector_loop = 0; vector_loop < vector_size_; vector_loop++) {
-            std::cout << "Waiting to get rf data " << vector_loop << " ..."
-                    << std::endl;
-            in_queue_.wait_and_pop(rf_data_);
-            std::cout << "elastography test\n";
-            uncomp_ = rf_data_->data;
-            height_ = rf_data_->height;
-            width_ = rf_data_->width;
-            no_of_frames_ = rf_data_->number_frames;
-            time_ = rf_data_->itime;
-            fhr_ = rf_data_->fhr;
-            set_threshold_values((float) fhr_.ss, (float) fhr_.uly,
-                    (float) fhr_.ulx, (float) fhr_.ury, (float) fhr_.urx,
-                    (float) fhr_.brx, (float) fhr_.bry);
-
-            vec_rf_data_->push_back(rf_data_);
-        }
-
-    } else {
-        read_burst_data(is_burst_, &uncomp_, in_queue_, height_, width_, time_,
-                fhr_);
+        vec_rf_data_->push_back(rf_data_);
     }
 
     costs_ = (cost *) malloc(
@@ -112,45 +105,39 @@ void Elastography::CalculateElastography() {
         int count_el = 0;
         int step_count = 0;
 
-        if (is_burst_ == 0) {
 #ifdef DEBUG_OUTPUT
-            std::cout << "Waiting to get rf data\n";
+        std::cout << "Waiting to get rf data\n";
 #endif
-            if (first_time) {
-                first_time = false;
-            } else {
-                // Discard old frames of RF data and receive new frames
-                while (step_count < step_size_) {
-                    in_queue_.wait_and_pop(rf_data_);
-                    uncomp_ = rf_data_->data;
-                    height_ = rf_data_->height;
-                    width_ = rf_data_->width;
-                    no_of_frames_ = rf_data_->number_frames;
-                    time_ = rf_data_->itime;
-                    fhr_ = rf_data_->fhr;
-                    set_threshold_values((float) fhr_.ss, (float) fhr_.uly,
-                            (float) fhr_.ulx, (float) fhr_.ury,
-                            (float) fhr_.urx, (float) fhr_.brx,
-                            (float) fhr_.bry);
-
-                    free((*vec_rf_data_)[0]->data);
-                    vec_rf_data_->erase(vec_rf_data_->begin());
-                    vec_rf_data_->insert(vec_rf_data_->end(), rf_data_);
-                    step_count++;
-                }
-            }
-            // Calculate the cost for every single pair of image
-            calculate_true_cost(vec_rf_data_, costs_, vector_size_, count_el,
-                    get_pos, 0.2);
+        if (first_time) {
+            first_time = false;
         } else {
-            read_burst_data(is_burst_, &uncomp_, in_queue_, height_, width_,
-                    time_, fhr_);
+            // Discard old frames of RF data and receive new frames
+            while (step_count < step_size_) {
+                in_queue_.wait_and_pop(rf_data_);
+                uncomp_ = rf_data_->data;
+                height_ = rf_data_->height;
+                width_ = rf_data_->width;
+                no_of_frames_ = rf_data_->number_frames;
+                time_ = rf_data_->itime;
+                fhr_ = rf_data_->fhr;
+                set_threshold_values((float) fhr_.ss, (float) fhr_.uly,
+                        (float) fhr_.ulx, (float) fhr_.ury,
+                        (float) fhr_.urx, (float) fhr_.brx,
+                        (float) fhr_.bry);
+
+                free((*vec_rf_data_)[0]->data);
+                vec_rf_data_->erase(vec_rf_data_->begin());
+                vec_rf_data_->insert(vec_rf_data_->end(), rf_data_);
+                step_count++;
+            }
         }
+        // Calculate the cost for every single pair of image
+        calculate_true_cost(vec_rf_data_, costs_, vector_size_, count_el,
+                get_pos, 0.2);
 
         std::cout << "Calculating... \n";
         execute_TRuE(costs_, vec_rf_data_, rf_data_, height_, width_,
-                no_of_frames_, top_n_, iteration_count_,
-                overall_iteration_count_, (char*) "", fhr_,
+                no_of_frames_, top_n_, iteration_count_, fhr_,
                 strain_or_displacement_, ncc_window_, ncc_overlap_,
                 ncc_displacement_);
         std::cout << "Calculating complete\n";
@@ -170,15 +157,19 @@ void Elastography::CalculateElastography() {
         iteration_count_++;
         fflush(stdout);
     }
+
+#ifdef DEBUG_OUTPUT
     std::cout << "Elastography thread ended.\n";
+#endif
 }
 
 Elastography::Elastography(int argc, char** argv) {
 
-    if (argc != 10) {
-        std::cout << "number of parameters is not right\n";
+    if (argc != 9) {
+        std::cerr << "number of parameters is not right\n";
         return;
     }
+
     rf_count_ = 0;
     no_of_frames_ = 1;
     temp_ = NULL;
@@ -198,13 +189,11 @@ Elastography::Elastography(int argc, char** argv) {
     noise_percentage_ = 0;
     iteration_count_ = 0;
     strain_ = NULL;
-
     scaled_strain_img_ = NULL;
     costs_ = NULL;
     rf_data_ = NULL;
-    vec_rf_data_ = new std::vector<data_frame_queue *>();
-    overall_iteration_count_ = 0;
-
+    scale_height_ = 0;
+    scale_width_ = 0;
     fhr_.ss = 0.75 * 1000.0;
     fhr_.uly = 3 * 1000.0;
     fhr_.ulx = 1 * 1000.0;
@@ -214,27 +203,24 @@ Elastography::Elastography(int argc, char** argv) {
     fhr_.bry = 0.035 * 10000.0;
     fhr_.txf = 5 * 1e6;
     fhr_.sf = 40 * 1e6;
-
-    scale_height_ = 0;
-    scale_width_ = 0;
+    vec_rf_data_ = new std::vector<data_frame_queue *>();
 
     strain_or_displacement_ = atoi(argv[1]);
-    is_burst_ = atoi(argv[2]);
-    vector_size_ = atoi(argv[3]);
-    device_id_ = atoi(argv[4]);
-    top_n_ = atoi(argv[5]);
-    step_size_ = atoi(argv[6]);
-    ncc_window_ = atoi(argv[7]);
-    ncc_overlap_ = atof(argv[8]);
-    ncc_displacement_ = atof(argv[9]);
+    vector_size_ = atoi(argv[2]);
+    device_id_ = atoi(argv[3]);
+    top_n_ = atoi(argv[4]);
+    step_size_ = atoi(argv[5]);
+    ncc_window_ = atoi(argv[6]);
+    ncc_overlap_ = atof(argv[7]);
+    ncc_displacement_ = atof(argv[8]);
+
 // Set the desired cuda device
     set_cuda_device(device_id_);
 }
 
 void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
         data_frame_queue *rf_data, int height, int width, int no_of_frames,
-        int top_n, int iteration_count, int overall_iteration_count,
-        char* output_folder_name, FrameHeader fhr, int strain_or_displacement,
+        int top_n, int iteration_count, FrameHeader fhr, int strain_or_displacement,
         int window, float overlap, float displacement) {
 
     ncc_collector_p data_collector;
@@ -246,18 +232,14 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
     // Creating top_n worker threads
     workerThread = new boost::thread[top_n];
     if (data_collector == NULL || workerThread == NULL) {
-#ifdef DEBUG_OUTPUT
-        printf("Out of memory\n");
-#endif
+        perror("Out of memory\n");
         return;
     }
 
     for (int i = 0; i < top_n; i++) {
         ncc_p = new ncc_parameters();
         if (ncc_p == NULL) {
-#ifdef DEBUG_OUTPUT
-            printf("Out of memory\n");
-#endif
+            perror("Out of memory\n");
             return;
         }
 
@@ -270,9 +252,7 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
         ncc_p->comp = (short int *) malloc(image_size); //freed in ncc_thread
         ncc_p->uncomp = (short int *) malloc(image_size); //freed in ncc_thread
         if (ncc_p->comp == NULL || ncc_p->uncomp == NULL) {
-#ifdef DEBUG_OUTPUT
-            printf("Out of memory\n");
-#endif
+            perror("Out of memory\n");
             return;
         }
         memcpy(ncc_p->comp, vec_a->at(C[i].i)->data, image_size);
@@ -302,24 +282,33 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
         ncc_p->urx = fhr.urx;
         ncc_p->brx = fhr.brx;
         ncc_p->bry = fhr.bry;
-
-        std::cout << "multi thread is working\n";
+#ifdef DEBUG_OUTPUT
+        std::cout << "Multi-thread NCC start\n";
+#endif
         workerThread[i] = boost::thread(&Elastography::ncc_thread_collector,
-                this, ncc_p, data_collector, workerThread, i, top_n,
-                overall_iteration_count);
-        std::cout << "multi thread is complete\n";
+                this, ncc_p, data_collector, workerThread, i, top_n);
+
+#ifdef DEBUG_OUTPUT
+        std::cout << "Multi-thread NCC complete\n";
+#endif
     }
+
+#ifdef DEBUG_OUTPUT
     std::cout << "Waiting to join\n";
+#endif
     // Wait for all threads complete
     for (int i = 0; i < top_n; i++) {
         workerThread[i].join();
     }
-    std::cout << "joining complete\n";
+
+#ifdef DEBUG_OUTPUT
+    std::cout << "Thread joining complete\n";
+#endif
 }
 
 int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
         ncc_collector_p data_collector, boost::thread workThread[], int index,
-        int total, int overall_count) {
+        int total) {
 
     float *displacement_strain;
     float *cross_corr;
@@ -330,7 +319,7 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
     float noise_percentage;
     float scaling_time;
 
-//parameters for scan conversion code
+    //parameters for scan conversion code
     unsigned char *avg_scaled_out;
     unsigned char *scaled_out;
     int scale_width;
@@ -357,10 +346,6 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
             ncc_p->width, strain_height, ncc_p->no_of_frames, ncc_p->spacing[0],
             ncc_p->spacing[1] * ncc_p->height / (double) strain_height,
             scaling_time);
-
-    /*scale_image_mm (&scaled_out, &scale_width, &scale_height,
-     strain, ncc_p->width, strain_height, ncc_p->no_of_frames,
-     ncc_p->spacing[0], ncc_p->spacing[1] * ncc_p->height / (double) strain_height);*/
 
     free(strain);
 
@@ -393,16 +378,14 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
 }
 
 void Elastography::wait_for_threads(boost::thread workThread[], int total) {
-    int i;
 
-    for (i = 0; i < total; i++) {
+    for (int i = 0; i < total; i++) {
         workThread[i].join();
     }
 }
 
 void Elastography::perform_strain_average(unsigned char *avg_scaled_out,
         ncc_collector_p data_collector, int total) {
-    int i, j, k;
     float total_weight = 0;
     int width;
     int height;
@@ -411,38 +394,36 @@ void Elastography::perform_strain_average(unsigned char *avg_scaled_out,
     width = data_collector[0].dims[0];
     height = data_collector[0].dims[1];
 
-    for (i = 0; i < total; i++) {
+    for (int i = 0; i < total; i++) {
         total_weight += data_collector[i].weight;
     }
     avg_scaled_out_float = (float *) malloc(sizeof(float) * width * height);
 
     if (avg_scaled_out == NULL || avg_scaled_out_float == NULL) {
-#ifdef DEBUG_OUTPUT
-        printf("Could not allocated memory\n");
-#endif
+        perror("Could not allocated memory\n");
         exit(1);
     }
 
     memset(avg_scaled_out_float, 0, sizeof(float) * width * height);
     memset(avg_scaled_out, 0, sizeof(unsigned char) * width * height);
 
-    for (i = 0; i < total; i++) {
-        for (j = 0; j < height; j++) {
-            for (k = 0; k < width; k++) {
+    for (int i = 0; i < total; i++) {
+        for (int j = 0; j < height; j++) {
+            for (int k = 0; k < width; k++) {
                 avg_scaled_out_float[j * width + k] += data_collector[i].weight
                         * data_collector[i].image[j * width + k];
             }
         }
     }
 
-    for (j = 0; j < height; j++) {
-        for (k = 0; k < width; k++) {
+    for (int j = 0; j < height; j++) {
+        for (int k = 0; k < width; k++) {
             avg_scaled_out_float[j * width + k] /= total_weight;
         }
     }
 
-    for (j = 0; j < height; j++) {
-        for (k = 0; k < width; k++) {
+    for (int j = 0; j < height; j++) {
+        for (int k = 0; k < width; k++) {
             avg_scaled_out[j * width + k] =
                     (unsigned char) avg_scaled_out_float[j * width + k];
         }
@@ -466,12 +447,9 @@ void Elastography::calculate_true_cost(std::vector<data_frame_queue *> *vec_a,
     float sp[3];
     double ScaleXY[2];
     cost temp;
-
     double trans1_d[16];
     double trans2_d[16];
-
     data_frame_queue *rf_data;
-
     std::vector<int>::reverse_iterator rit;
 
     count_el = 0;
@@ -482,7 +460,6 @@ void Elastography::calculate_true_cost(std::vector<data_frame_queue *> *vec_a,
 
 // Calculate the cost
     for (int i = 0; i < vector_size - 1; i++) {
-
         for (int j = i + 1; j < vector_size; j++) {
             if (i == j) {
                 continue;
@@ -582,9 +559,8 @@ void Elastography::read_burst_data(int is_burst, char **data,
 
 void Elastography::divide_initial_data(short int *data, int height, int width,
         int burst_count) {
-    int i, j;
-    for (i = 0; i < height; i++) {
-        for (j = 0; j < width; j++) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
             data[j + i * width] /= burst_count;
         }
     }
@@ -592,9 +568,8 @@ void Elastography::divide_initial_data(short int *data, int height, int width,
 
 void Elastography::add_char_data(short int *data, short int *recurring_data,
         int height, int width, int burst_count) {
-    int i, j;
-    for (i = 0; i < height; i++) {
-        for (j = 0; j < width; j++) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
             data[j + i * width] += recurring_data[j + i * width] / burst_count;
         }
     }
@@ -602,7 +577,6 @@ void Elastography::add_char_data(short int *data, short int *recurring_data,
 
 bool Elastography::gluInvertMatrix(const double m[16], double invOut[16]) {
     double inv[16], det;
-    int i;
 
     inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15]
             + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
@@ -643,7 +617,7 @@ bool Elastography::gluInvertMatrix(const double m[16], double invOut[16]) {
 
     det = 1.0 / det;
 
-    for (i = 0; i < 16; i++)
+    for (int i = 0; i < 16; i++)
         invOut[i] = inv[i] * det;
 
     return true;
@@ -665,7 +639,7 @@ void Elastography::GetDis(const double Tr1[16], const double Tr2[16],
         const int ROIrect[4], const double ScaleXY[2], double outputDD[3]) {
     double RelT[16];
     double invTr1[16];
-// RelT = inv(Tr1)*Tr2;
+
     if (!gluInvertMatrix(Tr1, invTr1)) {
         invTr1[0] = invTr1[5] = invTr1[10] = invTr1[15] = 1.0;
         invTr1[1] = invTr1[2] = invTr1[3] = 0;
@@ -758,6 +732,7 @@ int Elastography::thread_logger(boost::thread workThread[], double rf_time,
         FILE *fp) {
     for (int i = 0; i < 100; i++)
         workThread[i].join();
+
     time_t now;
     time(&now);
     fprintf(fp, "%f %ld\n", rf_time, now);
@@ -770,6 +745,7 @@ int Elastography::thread_counter(boost::thread workThread[], int x, int y,
 
     for (int i = 0; i < 1000; i++)
         workThread[i].join();
+
     fprintf(fp, "X %d Y %d Time %lf\n", x, y, timer1.elapsed());
     fflush(fp);
     return 0;

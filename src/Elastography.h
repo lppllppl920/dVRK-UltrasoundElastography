@@ -242,13 +242,12 @@ private:
     void ReadRFData(std::string prefix, int count);
     void execute_TRuE(cost *C, vector<data_frame_queue *> *vec_a,
             data_frame_queue *rf_data, int height, int width, int no_of_frames,
-            int top_n, int iteration_count, int overall_iteration_count,
-            char* output_folder_name, FrameHeader fhr,
+            int top_n, int iteration_count, FrameHeader fhr,
             int strain_or_displacement, int window, float overlap,
             float displacement);
     int ncc_thread_collector(ncc_parameters *ncc_p,
             ncc_collector_p data_collector, boost::thread workThread[],
-            int index, int total, int overall_count);
+            int index, int total);
     void wait_for_threads(boost::thread workThread[], int total);
     void perform_strain_average(unsigned char *avg_scaled_out,
             ncc_collector_p data_collector, int total);
@@ -280,7 +279,6 @@ private:
 private:
     long rf_count_;
     long iteration_count_;
-    long overall_iteration_count_;
     float average_cross_;
     float noise_percentage_;
     double time_;
@@ -294,7 +292,6 @@ private:
     int no_of_frames_;
     int top_n_;
     int strain_or_displacement_;
-    int is_burst_;
     int vector_size_;
     int step_size_;
     int ncc_window_;
@@ -311,7 +308,6 @@ private:
     unsigned char *network_average_strain_;
     unsigned char *scaled_strain_img_;
 
-    boost::timer timer1_, timer2_;
     strain_out s_out_;
     FrameHeader fhr_;
     cost *costs_;

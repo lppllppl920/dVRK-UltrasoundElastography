@@ -22,11 +22,13 @@ IGTL_client::IGTL_client(int argc, char **argv) {
         exit(1);
     }
 
-	RF_or_BMODE_ = atoi(argv[10]);
-	elastography_ = boost::make_shared<Elastography>(argc - 1, argv);
+	RF_or_BMODE_ = atoi(argv[9]);
+	us_ip_address_ = argv[10];
 
+	printf("US IP: %s", us_ip_address_);
+
+	elastography_ = boost::make_shared<Elastography>(argc - 2, argv);
 	continue_write_image_ = false;
-
 	candidate_header_ = NULL;
 }
 
@@ -841,7 +843,8 @@ void IGTL_client::socket_run() {
 
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = inet_addr("10.162.34.81");
+	sin.sin_addr.s_addr = inet_addr((const char*)us_ip_address_);
+	//"10.162.34.81"
     //23978 port for 2D Image
     //23877 port for RFServer
 

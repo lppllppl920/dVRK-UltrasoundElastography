@@ -86,6 +86,7 @@ public:
 	static unsigned long getThreadId();
 
 public:
+	char* us_ip_address_;
 	unsigned char* candidate_header_;
 	igtl::MessageHeader::Pointer header_msg_;
 	igtl::USMessage::Pointer us_msg_;
