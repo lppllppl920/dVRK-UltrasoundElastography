@@ -97,8 +97,7 @@ cuda_add_executable( MySocketClient
 	src/elastography/scan_conversion.h
 	src/elastography/matrix_io.h
 )
-	
-	
+		
 target_link_libraries( MySocketClient 
 	${CUDA_LIBRARIES}
 	${EVENT_LIBRARY}

@@ -41,6 +41,7 @@
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include <ros/ros.h>
 #include <std_msgs/String.h>
@@ -81,18 +82,11 @@ public:
 	void ros_run();
 	void run();
 
+	void chatterCallback(const std_msgs::String::ConstPtr& msg);
 	static unsigned long getThreadId();
-	void readcb(struct bufferevent *bev, void *ctx);
-	void eventcb(struct bufferevent *bev, short event, void *ctx);
-	static int ReceiveTransform(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceivePosition(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceiveImage(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceiveStatus(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceivePoint(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceiveString(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceiveBind(evbuffer * buf, igtl::MessageHeader * header);
-	static int ReceiveUS(evbuffer * buf, igtl::MessageHeader * header);
 
+public:
+	unsigned char* candidate_header_;
 	igtl::MessageHeader::Pointer header_msg_;
 	igtl::USMessage::Pointer us_msg_;
 	cv::Mat us_img_;

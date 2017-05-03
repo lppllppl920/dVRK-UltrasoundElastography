@@ -84,6 +84,7 @@ void Elastography::CalculateElastography() {
             std::cout << "Waiting to get rf data " << vector_loop << " ..."
                     << std::endl;
             in_queue_.wait_and_pop(rf_data_);
+            std::cout << "elastography test\n";
             uncomp_ = rf_data_->data;
             height_ = rf_data_->height;
             width_ = rf_data_->width;
@@ -158,15 +159,18 @@ void Elastography::CalculateElastography() {
 #endif
         cv::Mat strain_image = cv::Mat::zeros(scale_height_, scale_width_,
         CV_8UC1);
+        cv::Mat resize_strain_image;
         memcpy(strain_image.data, average_output_strain_,
                 scale_width_ * scale_height_ * sizeof(unsigned char));
         free(average_output_strain_);
 
-        cv::imshow("strain image", strain_image);
-        cv::waitKey(100);
+        cv::resize(strain_image, resize_strain_image, cv::Size2i(3 * scale_width_, 3 * scale_height_));
+        cv::imshow("strain image", resize_strain_image);
+        cv::waitKey(10);
         iteration_count_++;
         fflush(stdout);
     }
+    std::cout << "Elastography thread ended.\n";
 }
 
 Elastography::Elastography(int argc, char** argv) {
@@ -220,9 +224,9 @@ Elastography::Elastography(int argc, char** argv) {
     device_id_ = atoi(argv[4]);
     top_n_ = atoi(argv[5]);
     step_size_ = atoi(argv[6]);
-    ncc_window_ = atoi(argv[7]);//8;
-    ncc_overlap_ = atof(argv[8]);//1.0;
-    ncc_displacement_ = atof(argv[9]);//5.0;
+    ncc_window_ = atoi(argv[7]);
+    ncc_overlap_ = atof(argv[8]);
+    ncc_displacement_ = atof(argv[9]);
 // Set the desired cuda device
     set_cuda_device(device_id_);
 }
