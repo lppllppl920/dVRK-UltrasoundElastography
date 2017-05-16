@@ -19,11 +19,11 @@ IGTL_client::IGTL_client(int argc, char **argv) {
 
     if (argc != 11) {
         std::cout << "number of parameters is not right\n Parameters list: \n" <<
-                "0 8 0 8 2 12 1.0 10.0 0 10.162.34.81\n" <<
                 "Strain or displacement image(0/1), Number of frames for single elastogram(int), GPU Device ID(int)\n" <<
                 "Number of threads assigned for elastography(int), Number of new frames of RF data added for a new elastogram(int)\n" <<
                 "Window size of Normalized cross correlation(NCC) for elastography(int), overlap for NCC(float)\n" <<
-                "Overall displacement(float), RF or BMode Image(0/1), Ultrasound machine IP address(character array)\n";
+                "Overall displacement(float), RF or BMode Image(0/1), Ultrasound machine IP address(character array)\n" <<
+                "example: 1 8 0 8 2 20 1.0 5.0 0 10.162.34.81\n";
         exit(1);
     }
 
@@ -492,9 +492,14 @@ void eventcb_global(struct bufferevent *bev, short event, void *ctx) {
 		/* An error occured while connecting. */
 		perror("Error occured while connecting the server!");
 		bufferevent_free(bev);
+		exit(1);
 	} else if (event & BEV_EVENT_TIMEOUT) {
 		/* must be a timeout event handle, handle it */
 		perror("Time out occured!");
+
+		// Haven't tested these two lines
+		bufferevent_free(bev);
+		exit(1);
 	} else {
 		perror("Event callback invoked");
 	}
