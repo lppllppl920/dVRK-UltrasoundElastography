@@ -54,6 +54,7 @@ catkin_package(
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
+  /usr/local/cuda/samples/common/inc
 )
 
 #find_library (OpenIGTLinkMUSiiC_LIBRARIES_FULL_PATH NAMES ${OpenIGTLinkMUSiiC_LIBRARIES} PATHS /usr/local/lib/igtl)

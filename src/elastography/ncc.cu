@@ -442,10 +442,7 @@ int set_cuda_device(int device_id) {
 	checkCudaErrors(cudaGetDeviceCount(&device_count));
 	printf("Device count %d:\n", device_count);
 
-	if (device_count == 0) {
-		return 1;
-	}
-	if (device_id < 0 || device_id >= device_count) {
+	if (device_id < 0 || device_id > device_count) {
 		selected_device = gpuGetMaxGflopsDeviceId();
 	} else {
 		selected_device = device_id;
@@ -711,72 +708,72 @@ void ncc_volume(int height, int width, short int * comp_matrix_short,
 			strain_average);
 #endif
 
-	if (strain_average < 0) {
-
-		printf("Average is greater than 0 so recomputing\n");
-
-		normalizecrosscorr_jumbo<<<uncomp_matrix_x_volume, x, 0>>>(
-				uncomp_matrix_d, comp_matrix_d, t_d, corr_d, EI_1_d);
-
-		checkCUDAError("Calling normalized cross corr 2");
-
-		median_filter<<<uncomp_matrix_x_volume, x, 0>>>(EI_1_d, EI_1_smoothed_d,
-				MEDIAN_FILT_WIDTH, MEDIAN_FILT_HEIGHT, comp_matrix_x, x,
-				comp_matrix_x / NOF, x, zhol_d);
-
-		checkCUDAError("Calling median filter 2");
-
-		moving_average<<<uncomp_matrix_x_volume, x, 0>>>(EI_1_smoothed_d,
-				EI_1_d, MOVING_AVERAGE_DEPTH, uncomp_matrix_x);
-
-		checkCUDAError("Calling moving average 2");
-
-		cudaMemcpy(EI_1, EI_1_d, op_array_size, cudaMemcpyDeviceToHost);
-
-		*displacement = EI_1;
-
-		//No need to calculate strain again
-		if (strain_or_displacement == 0) {
-			st_clear<<<uncomp_matrix_x_volume, x, 0>>>(strain_d,
-					uncomp_matrix_x);
-
-			checkCUDAError("Calling st_clear 2");
-
-			st_LSQSE<<<comp_matrix_x_volume, x - diff_kernel, 0>>>(EI_1_d,
-					strain_d, diff_kernel, uncomp_matrix_x);
-
-			checkCUDAError("Calling st_LSQSE 2");
-
-			/**        
-			 * This transfer back is attached to the processing of the device
-			 */
-
-			/**
-			 * copy the strain back to the main memory
-			 */
-
-			cudaMemcpy(strain, strain_d, op_array_size, cudaMemcpyDeviceToHost);
-
-			/**
-			 * Find minimum and maximum
-			 */
-
-			find_min_max_dev(strain, uncomp_matrix_x_volume, x, &strain_min,
-					&strain_max, &std_dev, &strain_average, noise_percentage);
-#ifdef PRINT_DEBUG
-			printf(
-					"Min and Max for the strain image are min %.3f max %.3f std_deviation %.3f\n",
-					strain_min, strain_max, std_dev);
-#endif
-		}
-	}
+//	if (strain_average < 0) {
+//
+//		printf("Average is greater than 0 so recomputing\n");
+//
+//		normalizecrosscorr_jumbo<<<uncomp_matrix_x_volume, x, 0>>>(
+//				uncomp_matrix_d, comp_matrix_d, t_d, corr_d, EI_1_d);
+//
+//		checkCUDAError("Calling normalized cross corr 2");
+//
+//		median_filter<<<uncomp_matrix_x_volume, x, 0>>>(EI_1_d, EI_1_smoothed_d,
+//				MEDIAN_FILT_WIDTH, MEDIAN_FILT_HEIGHT, comp_matrix_x, x,
+//				comp_matrix_x / NOF, x, zhol_d);
+//
+//		checkCUDAError("Calling median filter 2");
+//
+//		moving_average<<<uncomp_matrix_x_volume, x, 0>>>(EI_1_smoothed_d,
+//				EI_1_d, MOVING_AVERAGE_DEPTH, uncomp_matrix_x);
+//
+//		checkCUDAError("Calling moving average 2");
+//
+//		cudaMemcpy(EI_1, EI_1_d, op_array_size, cudaMemcpyDeviceToHost);
+//
+//		*displacement = EI_1;
+//
+//		//No need to calculate strain again
+//		if (strain_or_displacement == 0) {
+//			st_clear<<<uncomp_matrix_x_volume, x, 0>>>(strain_d,
+//					uncomp_matrix_x);
+//
+//			checkCUDAError("Calling st_clear 2");
+//
+//			st_LSQSE<<<comp_matrix_x_volume, x - diff_kernel, 0>>>(EI_1_d,
+//					strain_d, diff_kernel, uncomp_matrix_x);
+//
+//			checkCUDAError("Calling st_LSQSE 2");
+//
+//			/**
+//			 * This transfer back is attached to the processing of the device
+//			 */
+//
+//			/**
+//			 * copy the strain back to the main memory
+//			 */
+//
+//			cudaMemcpy(strain, strain_d, op_array_size, cudaMemcpyDeviceToHost);
+//
+//			/**
+//			 * Find minimum and maximum
+//			 */
+//
+//			find_min_max_dev(strain, uncomp_matrix_x_volume, x, &strain_min,
+//					&strain_max, &std_dev, &strain_average, noise_percentage);
+//#ifdef PRINT_DEBUG
+//			printf(
+//					"Min and Max for the strain image are min %.3f max %.3f std_deviation %.3f\n",
+//					strain_min, strain_max, std_dev);
+//#endif
+//		}
+//	}
 
 #ifdef PRINT_DEBUG
 	printf("Standard deviation %.3f Strain average %.3f\n", std_dev,
 			strain_average);
 #endif
 
-//TODO adjust standard deviation has to be changed to accomodate volume of data.
+//TODO adjust standard deviation has to be changed to accommodate volume of data.
 
 	/**
 	 * Perform low and high pass filtering
@@ -908,6 +905,7 @@ void ncc_slow(int height, int width, short int * comp_matrix_short,
 		float *average_cross, float *average_strain, float *noise_percentage,
 		float F0, float FS, int strain_or_displacement, int NOF, int ncc_window,
 		float ncc_overlap, float ncc_displacement) {
+
 	cudaStream_t stream_ncc;
 	float *t;
 	float *corr;
@@ -919,8 +917,6 @@ void ncc_slow(int height, int width, short int * comp_matrix_short,
 	float *corr_d;
 	short int *comp_matrix_d;
 	short int *uncomp_matrix_d;
-	//float *comp_matrix;
-	//float *uncomp_matrix;
 	float *EI_1_d;
 	float *EI_1;
 	float *EI_1_smoothed_d;
@@ -932,9 +928,7 @@ void ncc_slow(int height, int width, short int * comp_matrix_short,
 	float *strain_transpose;
 	float *zhol;
 	float *zhol_d;
-	//int NOF = 1;
 	int diff_kernel;
-	//int i;
 	int comp_matrix_x;
 	int comp_matrix_y;
 	int uncomp_matrix_x;
@@ -998,10 +992,7 @@ void ncc_slow(int height, int width, short int * comp_matrix_short,
 			ncc_displacement, x);
 #endif
 	op_array_size = sizeof(float) * x * uncomp_matrix_x;
-
-	//t = (float *) malloc (op_array_size);    
 	zhol = (float *) malloc(1000 * sizeof(float));
-	//strain = (float *) malloc (op_array_size);
 	//Create a stream
 	checkCudaErrors(cudaStreamCreate(&stream_ncc));
 	diff_kernel = 8;
@@ -1195,108 +1186,107 @@ void ncc_slow(int height, int width, short int * comp_matrix_short,
 			strain_average);
 #endif
 
-	if (strain_average < 0) {
-		printf("test\n");
-		printf("Average is less than 0 so recomputing\n");
-
-		for (k = 0; k < NOF; k++) {
-			normalizecrosscorr_jumbo<<<uncomp_matrix_x / NOF, x, 0, stream_ncc>>>(
-					uncomp_matrix_d
-							+ k * (uncomp_matrix_x / NOF) * uncomp_matrix_y,
-					comp_matrix_d + k * (comp_matrix_x / NOF) * comp_matrix_y,
-					t_d + k * (comp_matrix_x / NOF) * x,
-					corr_d + k * (comp_matrix_x / NOF) * x,
-					EI_1_d + k * (comp_matrix_x / NOF) * x);
-			checkCUDAError("Calling normalized cross corr");
-		}
-
-		/*normalizecrosscorr_jumbo <<<uncomp_matrix_x, x, 0>>> 
-		 (uncomp_matrix_d, comp_matrix_d, t_d, corr_d, EI_1_d);
-
-		 checkCUDAError ("Calling normalized cross corr 2");*/
-
-		for (k = 0; k < NOF; k++) {
-			median_filter<<<uncomp_matrix_x / NOF, x, 0, stream_ncc>>>(
-					EI_1_d + k * (comp_matrix_x / NOF) * x,
-					EI_1_smoothed_d + k * (comp_matrix_x / NOF) * x,
-					MEDIAN_FILT_WIDTH, MEDIAN_FILT_HEIGHT, comp_matrix_x / NOF,
-					x, comp_matrix_x / NOF, x, zhol_d);
-			checkCUDAError("Calling median filter 2");
-		}
-		printf("test\n");
-		/*median_filter<<<uncomp_matrix_x, x, 0>>>
-		 (EI_1_d, EI_1_smoothed_d, MEDIAN_FILT_WIDTH, MEDIAN_FILT_HEIGHT, comp_matrix_x, x,
-		 comp_matrix_x/NOF, x, zhol_d);
-
-		 checkCUDAError ("Calling median filter 2");*/
-
-		for (k = 0; k < NOF; k++) {
-			moving_average<<<uncomp_matrix_x / NOF, x, 0, stream_ncc>>>(
-					EI_1_smoothed_d + k * (comp_matrix_x / NOF) * x,
-					EI_1_d + k * (comp_matrix_x / NOF) * x,
-					MOVING_AVERAGE_DEPTH, uncomp_matrix_x / NOF);
-
-			checkCUDAError("Calling moving average 2");
-		}
-
-		/*moving_average<<<uncomp_matrix_x, x, 0>>>
-		 (EI_1_smoothed_d, EI_1_d, MOVING_AVERAGE_DEPTH, uncomp_matrix_x);
-
-		 checkCUDAError ("Calling moving average 2");*/
-
-		cudaMemcpyAsync(EI_1, EI_1_d, op_array_size, cudaMemcpyDeviceToHost,
-				stream_ncc);
-		cudaStreamSynchronize(stream_ncc);
-
-		//EI_1_return is already allocated.
-		memcpy(EI_1_return, EI_1, op_array_size);
-
-		*displacement = EI_1_return;
-
-		//No need to calculate strain again
-		if (strain_or_displacement == 0) {
-			st_clear<<<uncomp_matrix_x, x, 0, stream_ncc>>>(strain_d,
-					uncomp_matrix_x);
-
-			checkCUDAError("Calling st_clear 2");
-
-			for (k = 0; k < NOF; k++) {
-
-				st_LSQSE<<<comp_matrix_x / NOF, x - diff_kernel, 0, stream_ncc>>>(
-						EI_1_d + k * (comp_matrix_x / NOF) * x,
-						strain_d + k * (comp_matrix_x / NOF) * x, diff_kernel,
-						uncomp_matrix_x / NOF);
-
-			}
-
-			checkCUDAError("Calling st_LSQSE 2");
-
-			/**        
-			 * This transfer back is attached to the processing of the device
-			 */
-
-			/**
-			 * copy the strain back to the main memory
-			 */
-
-			cudaMemcpyAsync(strain, strain_d, op_array_size,
-					cudaMemcpyDeviceToHost, stream_ncc);
-			cudaStreamSynchronize(stream_ncc);
-
-			/**
-			 * Find minimum and maximum
-			 */
-
-			find_min_max_dev(strain, uncomp_matrix_x, x, &strain_min,
-					&strain_max, &std_dev, &strain_average, noise_percentage);
-
-#ifdef PRINT_DEBUG
-			printf(
-					"Min and Max for the strain image are min %.3f max %.3f std_deviation %.3f\n",
-					strain_min, strain_max, std_dev);
-#endif
-		}
-	}
+//	if (strain_average < 0) {
+//		printf("Average is less than 0 so recomputing\n");
+//
+//		for (k = 0; k < NOF; k++) {
+//			normalizecrosscorr_jumbo<<<uncomp_matrix_x / NOF, x, 0, stream_ncc>>>(
+//					uncomp_matrix_d
+//							+ k * (uncomp_matrix_x / NOF) * uncomp_matrix_y,
+//					comp_matrix_d + k * (comp_matrix_x / NOF) * comp_matrix_y,
+//					t_d + k * (comp_matrix_x / NOF) * x,
+//					corr_d + k * (comp_matrix_x / NOF) * x,
+//					EI_1_d + k * (comp_matrix_x / NOF) * x);
+//			checkCUDAError("Calling normalized cross corr");
+//		}
+//
+//		/*normalizecrosscorr_jumbo <<<uncomp_matrix_x, x, 0>>>
+//		 (uncomp_matrix_d, comp_matrix_d, t_d, corr_d, EI_1_d);
+//
+//		 checkCUDAError ("Calling normalized cross corr 2");*/
+//
+//		for (k = 0; k < NOF; k++) {
+//			median_filter<<<uncomp_matrix_x / NOF, x, 0, stream_ncc>>>(
+//					EI_1_d + k * (comp_matrix_x / NOF) * x,
+//					EI_1_smoothed_d + k * (comp_matrix_x / NOF) * x,
+//					MEDIAN_FILT_WIDTH, MEDIAN_FILT_HEIGHT, comp_matrix_x / NOF,
+//					x, comp_matrix_x / NOF, x, zhol_d);
+//			checkCUDAError("Calling median filter 2");
+//		}
+//		printf("test\n");
+//		/*median_filter<<<uncomp_matrix_x, x, 0>>>
+//		 (EI_1_d, EI_1_smoothed_d, MEDIAN_FILT_WIDTH, MEDIAN_FILT_HEIGHT, comp_matrix_x, x,
+//		 comp_matrix_x/NOF, x, zhol_d);
+//
+//		 checkCUDAError ("Calling median filter 2");*/
+//
+//		for (k = 0; k < NOF; k++) {
+//			moving_average<<<uncomp_matrix_x / NOF, x, 0, stream_ncc>>>(
+//					EI_1_smoothed_d + k * (comp_matrix_x / NOF) * x,
+//					EI_1_d + k * (comp_matrix_x / NOF) * x,
+//					MOVING_AVERAGE_DEPTH, uncomp_matrix_x / NOF);
+//
+//			checkCUDAError("Calling moving average 2");
+//		}
+//
+//		/*moving_average<<<uncomp_matrix_x, x, 0>>>
+//		 (EI_1_smoothed_d, EI_1_d, MOVING_AVERAGE_DEPTH, uncomp_matrix_x);
+//
+//		 checkCUDAError ("Calling moving average 2");*/
+//
+//		cudaMemcpyAsync(EI_1, EI_1_d, op_array_size, cudaMemcpyDeviceToHost,
+//				stream_ncc);
+//		cudaStreamSynchronize(stream_ncc);
+//
+//		//EI_1_return is already allocated.
+//		memcpy(EI_1_return, EI_1, op_array_size);
+//
+//		*displacement = EI_1_return;
+//
+//		//No need to calculate strain again
+//		if (strain_or_displacement == 0) {
+//			st_clear<<<uncomp_matrix_x, x, 0, stream_ncc>>>(strain_d,
+//					uncomp_matrix_x);
+//
+//			checkCUDAError("Calling st_clear 2");
+//
+//			for (k = 0; k < NOF; k++) {
+//
+//				st_LSQSE<<<comp_matrix_x / NOF, x - diff_kernel, 0, stream_ncc>>>(
+//						EI_1_d + k * (comp_matrix_x / NOF) * x,
+//						strain_d + k * (comp_matrix_x / NOF) * x, diff_kernel,
+//						uncomp_matrix_x / NOF);
+//
+//			}
+//
+//			checkCUDAError("Calling st_LSQSE 2");
+//
+//			/**
+//			 * This transfer back is attached to the processing of the device
+//			 */
+//
+//			/**
+//			 * copy the strain back to the main memory
+//			 */
+//
+//			cudaMemcpyAsync(strain, strain_d, op_array_size,
+//					cudaMemcpyDeviceToHost, stream_ncc);
+//			cudaStreamSynchronize(stream_ncc);
+//
+//			/**
+//			 * Find minimum and maximum
+//			 */
+//
+//			find_min_max_dev(strain, uncomp_matrix_x, x, &strain_min,
+//					&strain_max, &std_dev, &strain_average, noise_percentage);
+//
+//#ifdef PRINT_DEBUG
+//			printf(
+//					"Min and Max for the strain image are min %.3f max %.3f std_deviation %.3f\n",
+//					strain_min, strain_max, std_dev);
+//#endif
+//		}
+//	}
 
 #ifdef PRINT_DEBUG
 	printf("Standard deviation %.3f Strain average %.3f\n", std_dev,
@@ -1308,7 +1298,6 @@ void ncc_slow(int height, int width, short int * comp_matrix_short,
 
 //For loop will do conversion independently for each strain values separately.
 	for (k = 0; k < NOF; k++) {
-
 		find_min_max_dev(strain + strain_size_float * k, uncomp_matrix_x / NOF,
 				x, &strain_min, &strain_max, &std_dev, &strain_average,
 				noise_percentage);

@@ -18,14 +18,17 @@ void Elastography::ReadRFData(std::string prefix, int count) {
         directory << prefix << "RF_" << i << ".tiff";
         std::cout << directory.str() << std::endl;
         rf_image = cv::imread(directory.str(), cv::IMREAD_GRAYSCALE);
-//        cv::imshow("rf", rf_image);
-//        cv::waitKey(100);
         std::cout << "Image size: "
                 << rf_image.cols * rf_image.rows * rf_image.channels()
                 << std::endl;
         rf_data_pointer->data = (char*) malloc(
                 sizeof(unsigned char) * rf_image.cols * rf_image.rows
                         * rf_image.channels());
+        if(rf_data_pointer->data == NULL) {
+            perror("Out of memory\n");
+            exit(1);
+        }
+
         memcpy(rf_data_pointer->data, rf_image.data,
                 sizeof(unsigned char) * rf_image.cols * rf_image.rows
                         * rf_image.channels());
@@ -50,6 +53,11 @@ void Elastography::PushRFData(void *image_data, int image_size,
         time_t time_stamp) {
     data_frame_queue * rf_data_pointer = new data_frame_queue;
     rf_data_pointer->data = (char*) malloc(image_size);
+    if(rf_data_pointer->data == NULL) {
+        perror("Out of memory\n");
+        exit(1);
+    }
+
     memcpy(rf_data_pointer->data, image_data, image_size);
     rf_data_pointer->height = image_height;
     rf_data_pointer->width = image_width;
@@ -71,9 +79,6 @@ void Elastography::PushRFData(void *image_data, int image_size,
 
 void Elastography::CalculateElastography() {
 
-    // Read rf data from hard disk
-//    ReadRFData("/home/xingtong/Pictures/US/", 30);
-
 // Popping all the rf data we need to use to calculate the first frame of strain image
 // vector_size_ is used to specify how many frames do we want to use to calculate a single strain image
     bool first_time = true;
@@ -82,8 +87,7 @@ void Elastography::CalculateElastography() {
         std::cout << "Waiting to get rf data " << vector_loop << " ..."
                 << std::endl;
         in_queue_.wait_and_pop(rf_data_);
-        std::cout << "elastography test\n";
-        uncomp_ = rf_data_->data;
+//        uncomp_ = rf_data_->data;
         height_ = rf_data_->height;
         width_ = rf_data_->width;
         no_of_frames_ = rf_data_->number_frames;
@@ -97,7 +101,12 @@ void Elastography::CalculateElastography() {
     }
 
     costs_ = (cost *) malloc(
-            (vector_size_ * (vector_size_ - 1) / 2) * sizeof(cost));
+            (vector_size_ * (vector_size_ - 1) / 2 + 5) * sizeof(cost));
+    if(costs_ == NULL) {
+        perror("Out of memory\n");
+        exit(1);
+    }
+
     while (true) {
         // Get position of the first element of the valid element in the vector
         int get_pos = 0;
@@ -114,7 +123,7 @@ void Elastography::CalculateElastography() {
             // Discard old frames of RF data and receive new frames
             while (step_count < step_size_) {
                 in_queue_.wait_and_pop(rf_data_);
-                uncomp_ = rf_data_->data;
+//                uncomp_ = rf_data_->data;
                 height_ = rf_data_->height;
                 width_ = rf_data_->width;
                 no_of_frames_ = rf_data_->number_frames;
@@ -132,28 +141,41 @@ void Elastography::CalculateElastography() {
             }
         }
         // Calculate the cost for every single pair of image
+        // Seems like the cost also relates to the distance between two frames.
+        // I'm not sure that Ultrasound machine outputs that position info
         calculate_true_cost(vec_rf_data_, costs_, vector_size_, count_el,
                 get_pos, 0.2);
 
+#ifdef DEBUG_OUTPUT
         std::cout << "Calculating... \n";
+#endif
+        // TODO: How to well define overall displacement parameter ncc_displacement_
         execute_TRuE(costs_, vec_rf_data_, rf_data_, height_, width_,
-                no_of_frames_, top_n_, iteration_count_, fhr_,
+                no_of_frames_, top_n_, fhr_,
                 strain_or_displacement_, ncc_window_, ncc_overlap_,
                 ncc_displacement_);
+#ifdef DEBUG_OUTPUT
         std::cout << "Calculating complete\n";
+#endif
+
 #ifdef DEBUG_OUTPUT
         std::cout << "strain image size: " << scale_height_ << " " << scale_width_ << std::endl;
 #endif
         cv::Mat strain_image = cv::Mat::zeros(scale_height_, scale_width_,
         CV_8UC1);
-        cv::Mat resize_strain_image;
         memcpy(strain_image.data, average_output_strain_,
                 scale_width_ * scale_height_ * sizeof(unsigned char));
         free(average_output_strain_);
 
-        cv::resize(strain_image, resize_strain_image, cv::Size2i(3 * scale_width_, 3 * scale_height_));
-        cv::imshow("strain image", resize_strain_image);
+        cv::Mat enlarged_strain_image;
+        cv::resize(strain_image, enlarged_strain_image, cv::Size(0, 0), 3.0, 3.0);
+        if(strain_or_displacement_ == 0) {
+            cv::imshow("strain map", enlarged_strain_image);
+        } else {
+            cv::imshow("displacement map", enlarged_strain_image);
+        }
         cv::waitKey(10);
+
         iteration_count_++;
         fflush(stdout);
     }
@@ -167,7 +189,7 @@ Elastography::Elastography(int argc, char** argv) {
 
     if (argc != 9) {
         std::cerr << "number of parameters is not right\n";
-        return;
+        exit(1);
     }
 
     rf_count_ = 0;
@@ -214,13 +236,27 @@ Elastography::Elastography(int argc, char** argv) {
     ncc_overlap_ = atof(argv[7]);
     ncc_displacement_ = atof(argv[8]);
 
+    // If the number of threads for elastography exceeds the number of frames need to be processed
+    if(vector_size_ < top_n_) {
+        std::cerr << "Number of threads exceeds the number of frames to be processed for a single elastogram. "
+                 << "Reducing the thread number\n";
+        top_n_ = vector_size_;
+    }
+
+    if ((strain_or_displacement_ != 0 && strain_or_displacement_ != 1)
+            || vector_size_ <= 0 || top_n_ <= 0 || step_size_ <= 0 ||
+            ncc_window_ <= 0 || ncc_overlap_ < 0.0 || ncc_displacement_ < 0.0) {
+        std::cerr << "Certain parameters are not right. Exit\n";
+        exit(1);
+    }
+
 // Set the desired cuda device
     set_cuda_device(device_id_);
 }
 
 void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
         data_frame_queue *rf_data, int height, int width, int no_of_frames,
-        int top_n, int iteration_count, FrameHeader fhr, int strain_or_displacement,
+        int top_n, FrameHeader fhr, int strain_or_displacement,
         int window, float overlap, float displacement) {
 
     ncc_collector_p data_collector;
@@ -233,14 +269,14 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
     workerThread = new boost::thread[top_n];
     if (data_collector == NULL || workerThread == NULL) {
         perror("Out of memory\n");
-        return;
+        exit(1);
     }
 
     for (int i = 0; i < top_n; i++) {
         ncc_p = new ncc_parameters();
         if (ncc_p == NULL) {
             perror("Out of memory\n");
-            return;
+            exit(1);
         }
 
         // comp means compressed image
@@ -253,7 +289,7 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
         ncc_p->uncomp = (short int *) malloc(image_size); //freed in ncc_thread
         if (ncc_p->comp == NULL || ncc_p->uncomp == NULL) {
             perror("Out of memory\n");
-            return;
+            exit(1);
         }
         memcpy(ncc_p->comp, vec_a->at(C[i].i)->data, image_size);
         memcpy(ncc_p->uncomp, vec_a->at(C[i].j)->data, image_size);
@@ -273,8 +309,9 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
         ncc_p->ncc_window = window;
         ncc_p->ncc_overlap = overlap;
 
+        // TODO: what does this parameter mean
         ncc_p->ncc_displacement = displacement;
-        //}
+
         ncc_p->ss = fhr.ss;
         ncc_p->uly = fhr.uly;
         ncc_p->ulx = fhr.ulx;
@@ -296,10 +333,9 @@ void Elastography::execute_TRuE(cost *C, std::vector<data_frame_queue *> *vec_a,
 #ifdef DEBUG_OUTPUT
     std::cout << "Waiting to join\n";
 #endif
-    // Wait for all threads complete
-    for (int i = 0; i < top_n; i++) {
-        workerThread[i].join();
-    }
+    // Other threads have joined in function ncc_thread_collector
+    // So here we just need to join the main workerThread
+    workerThread[top_n - 1].join();
 
 #ifdef DEBUG_OUTPUT
     std::cout << "Thread joining complete\n";
@@ -330,6 +366,16 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
             (float) ncc_p->ulx, (float) ncc_p->ury, (float) ncc_p->urx,
             (float) ncc_p->brx, (float) ncc_p->bry);
 
+//    fhr_.ss = 0.75 * 1000.0;
+//    fhr_.uly = 3 * 1000.0;
+//    fhr_.ulx = 1 * 1000.0;
+//    fhr_.ury = 3 * 1000.0;
+//    fhr_.urx = 1 * 1000.0;
+//    fhr_.brx = 0.035 * 10000.0;
+//    fhr_.bry = 0.035 * 10000.0;
+//    fhr_.txf = 5 * 1e6;
+//    fhr_.sf = 40 * 1e6;
+
     ncc_slow(ncc_p->height, ncc_p->width * ncc_p->no_of_frames, ncc_p->comp,
             ncc_p->uncomp, &cross_corr, &displacement_strain, &strain,
             &strain_height, &average_cross, &average_strain, &noise_percentage,
@@ -337,10 +383,11 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
             ncc_p->ncc_window, ncc_p->ncc_overlap, ncc_p->ncc_displacement);
 
     free(displacement_strain);
-
     free(cross_corr);
 
-    data_collector[index].weight = average_strain;
+    // TODO: What weight should we use
+    // Originally use average_strain as weight, which I think may increase noise in the elastogram
+    data_collector[index].weight = average_strain;//1.0;// / (1.0 + average_strain);
 
     cuda_scale_image_mm(&scaled_out, &scale_width, &scale_height, strain,
             ncc_p->width, strain_height, ncc_p->no_of_frames, ncc_p->spacing[0],
@@ -353,6 +400,7 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
             / (double) scale_height;
     int k = 0;
 
+    // order: width and height
     data_collector[index].dims[0] = scale_width;
     data_collector[index].dims[1] = scale_height;
     data_collector[index].dims[2] = 1;
@@ -365,8 +413,12 @@ int Elastography::ncc_thread_collector(ncc_parameters *ncc_p,
         wait_for_threads(workThread, total - 1);
         average_output_strain_ = (unsigned char *) malloc(
                 sizeof(unsigned char) * scale_width_ * scale_height_);
-        perform_strain_average(average_output_strain_, data_collector, total);
+        if(average_output_strain_ == NULL) {
+            perror("Out of memory\n");
+            exit(1);
+        }
 
+        perform_strain_average(average_output_strain_, data_collector, total);
         free_collector(data_collector, total);
         delete [] data_collector;
     }
@@ -398,9 +450,8 @@ void Elastography::perform_strain_average(unsigned char *avg_scaled_out,
         total_weight += data_collector[i].weight;
     }
     avg_scaled_out_float = (float *) malloc(sizeof(float) * width * height);
-
-    if (avg_scaled_out == NULL || avg_scaled_out_float == NULL) {
-        perror("Could not allocated memory\n");
+    if (avg_scaled_out_float == NULL) {
+        perror("Out of memory\n");
         exit(1);
     }
 
@@ -461,9 +512,6 @@ void Elastography::calculate_true_cost(std::vector<data_frame_queue *> *vec_a,
 // Calculate the cost
     for (int i = 0; i < vector_size - 1; i++) {
         for (int j = i + 1; j < vector_size; j++) {
-            if (i == j) {
-                continue;
-            }
 
             igtl::Matrix4x4 trans1;
             igtl::Matrix4x4 trans2;
@@ -475,7 +523,6 @@ void Elastography::calculate_true_cost(std::vector<data_frame_queue *> *vec_a,
             copy_float_double(trans2_d, trans2);
             rf_data->ImgMsg->GetDimensions(sz);
             rf_data->ImgMsg->GetSpacing(sp[0], sp[1], sp[2]);
-            //rf_data->ImgMsg->GetSpacing(sp);
             ScaleXY[0] = sp[0];
             ScaleXY[1] = sp[1];
             //previous value 0.2
@@ -650,7 +697,7 @@ void Elastography::GetDis(const double Tr1[16], const double Tr2[16],
     MulMatrices(invTr1, Tr2, RelT);
 
     double nn[3], tt, theta;
-//%% convert to axis-angle %%%
+// convert to axis-angle
     tt = (RelT[0] + RelT[5] + RelT[10] - 1) / 2;
     if ((tt < 1) && (tt > -1)) // make sure acos returns real number
         theta = acos(tt);
@@ -663,7 +710,6 @@ void Elastography::GetDis(const double Tr1[16], const double Tr2[16],
     double norm_nn = sqrt(nn[0] * nn[0] + nn[1] * nn[1] + nn[2] * nn[2]);
     for (int i = 0; i < 3; i++)
         nn[i] *= theta / norm_nn;
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     double X1 = ScaleXY[0] * ROIrect[0];
     double X2 = ScaleXY[0] * ROIrect[1];

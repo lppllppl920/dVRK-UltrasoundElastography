@@ -18,14 +18,21 @@ IGTL_client::IGTL_client(int argc, char **argv) {
 	us_image_count_ = 0;
 
     if (argc != 11) {
-        std::cout << "number of parameters is not right\n";
+        std::cout << "number of parameters is not right\n Parameters list: \n" <<
+                "0 8 0 8 2 12 1.0 10.0 0 10.162.34.81\n" <<
+                "Strain or displacement image(0/1), Number of frames for single elastogram(int), GPU Device ID(int)\n" <<
+                "Number of threads assigned for elastography(int), Number of new frames of RF data added for a new elastogram(int)\n" <<
+                "Window size of Normalized cross correlation(NCC) for elastography(int), overlap for NCC(float)\n" <<
+                "Overall displacement(float), RF or BMode Image(0/1), Ultrasound machine IP address(character array)\n";
         exit(1);
     }
 
 	RF_or_BMODE_ = atoi(argv[9]);
 	us_ip_address_ = argv[10];
 
+#ifdef DEBUG_OUTPUT
 	printf("US IP: %s", us_ip_address_);
+#endif
 
 	elastography_ = boost::make_shared<Elastography>(argc - 2, argv);
 	continue_write_image_ = false;
@@ -39,19 +46,20 @@ IGTL_client::~IGTL_client() {
 	    elastography_thread_->join();
 	}
 	socket_thread_->join();
-	ros_thread_->join();
+//	ros_thread_->join();
 	ros::shutdown();
 }
 
 
 void IGTL_client::run() {
     XInitThreads();
-    ros_thread_ = boost::make_shared < boost::thread
-            > (boost::bind(&IGTL_client::ros_run, this));
+//    ros_thread_ = boost::make_shared < boost::thread
+//            > (boost::bind(&IGTL_client::ros_run, this));
 	socket_thread_ = boost::make_shared < boost::thread
 			> (boost::bind(&IGTL_client::socket_run, this));
 	if(RF_or_BMODE_ == 0) {
-	    elastography_thread_ = boost::make_shared<boost::thread> (boost::bind(&Elastography::CalculateElastography, elastography_));
+	    elastography_thread_ = boost::make_shared<boost::thread>
+	    (boost::bind(&Elastography::CalculateElastography, elastography_));
 	}
 }
 
@@ -420,9 +428,6 @@ void readcb_global(struct bufferevent *bev, void *ctx) {
 						memcpy((void *) pointer->us_img_.data,
 								pointer->us_msg_->GetScalarPointer(),
 								pointer->us_msg_->GetImageSize());
-//						cv::Mat resized_img;
-//						cv::resize(pointer->us_img_, resized_img,
-//						        cv::Size2i(pointer->us_img_.cols * 3, pointer->us_img_.rows * 3));
 			            cv::imshow("Received image", pointer->us_img_);
 			            int key_pressed = cv::waitKey(100);
 			            // whether or not to start writing image in a continuous way

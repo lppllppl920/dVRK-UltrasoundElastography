@@ -39,6 +39,8 @@
 #include "elastography/matrix_io.h"
 #include "elastography/ncc.h"
 
+//#define DEBUG_OUTPUT
+
 class Elastography {
 public:
 
@@ -242,7 +244,7 @@ private:
     void ReadRFData(std::string prefix, int count);
     void execute_TRuE(cost *C, vector<data_frame_queue *> *vec_a,
             data_frame_queue *rf_data, int height, int width, int no_of_frames,
-            int top_n, int iteration_count, FrameHeader fhr,
+            int top_n, FrameHeader fhr,
             int strain_or_displacement, int window, float overlap,
             float displacement);
     int ncc_thread_collector(ncc_parameters *ncc_p,
@@ -297,9 +299,14 @@ private:
     int ncc_window_;
     float ncc_overlap_;
     float ncc_displacement_;
+
     // pre-compressed image and post-compressed image
+    // One problem is we don't know which one is pre-compressed or post-compressed
+    // if we dont know the position of the probe relative to the phantom
+    // I dont know whether the code works symmetrically or not. (same result for swapping the order of two RF images?)
     char *uncomp_;
     char *comp_;
+
     char *temp_;
     float *displacement_strain_;
     float *cross_corr_;

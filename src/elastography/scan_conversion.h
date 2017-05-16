@@ -27,7 +27,7 @@
 #include <helper_cuda.h>
 #include <helper_cuda_gl.h>
 #include <helper_functions.h>
-#include <helper_timer.h>
+#include <helper_timer.h> //samples/common/inc/
 
 #ifdef	__cplusplus
 extern "C" {

@@ -47,8 +47,8 @@ void print_image(FILE *fp, short int* image, int m, int n);
 
 enum {
 	NCC_MAX_FRAME_SIZE = 1000,
-	MEDIAN_FILT_WIDTH = 6,
-	MEDIAN_FILT_HEIGHT = 9,
+	MEDIAN_FILT_WIDTH = 3,
+	MEDIAN_FILT_HEIGHT = 3,
 	MOVING_AVERAGE_DEPTH = 5,
 	RF_THRESHOLD_FILTER = -25
 };
